@@ -1,0 +1,5 @@
+OPENAI_API_KEY: "sk-91BTci1AhiJvn8cygZehrMNYuNuqCFgN3cBHzTBjoz3A310x"
+OPENAI_API_MODEL: "kimi-k2-turbo-preview"
+OPENAI_BASE_URL: "https://api.moonshot.cn/v1"
+global_proxy: ""
+# OPENAI_API_KEY: ""

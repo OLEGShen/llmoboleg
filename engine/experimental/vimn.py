@@ -132,3 +132,12 @@ class VIMN_Lite(nn.Module):
         encoded = self.encoder(x)
         intent_vector = self.intent_head(encoded[:, -1, :])
         return intent_vector
+
+
+class IntentContrastiveHead(nn.Module):
+    def __init__(self, hidden_dim: int):
+        super().__init__()
+        self.proj = nn.Linear(hidden_dim, hidden_dim)
+
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        return self.proj(z)

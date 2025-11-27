@@ -5,6 +5,7 @@ import pickle
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+from torch.cuda import amp
 
 sys.path.append(os.path.abspath('.'))
 from engine.experimental.vimn import DataVectorizer, VIMN_Lite, IntentContrastiveHead
@@ -24,57 +25,98 @@ def main():
     parser.add_argument('--id', type=str, default='934')
     parser.add_argument('--embed_dim', type=int, default=64)
     parser.add_argument('--hidden_dim', type=int, default=128)
-    parser.add_argument('--epochs', type=int, default=3)
+    parser.add_argument('--epochs', type=int, default=10)
     parser.add_argument('--lr', type=float, default=1e-3)
-    parser.add_argument('--batch', type=int, default=4)
+    parser.add_argument('--batch', type=int, default=64)
+    parser.add_argument('--num_neg', type=int, default=8)
+    parser.add_argument('--precision', type=str, default='bf16', choices=['fp32', 'fp16', 'bf16'])
+    parser.add_argument('--device', type=str, default='auto', choices=['auto', 'cuda', 'cpu'])
     args = parser.parse_args()
 
-    vec = DataVectorizer('./data/loc_map.pkl', './data/location_activity_map.pkl')
+    agg_allowed_poi = None
+    agg_allowed_act = None
+    agg_path = f'./data/{args.year}/{args.id}.pkl'
+    try:
+        with open(agg_path, 'rb') as f:
+            att = pickle.load(f)
+        if isinstance(att, (list, tuple)) and len(att) >= 4:
+            agg_allowed_poi = att[2] if att[2] else None
+            agg_allowed_act = att[3] if att[3] else None
+    except Exception:
+        pass
+
+    vec = DataVectorizer('./data/loc_map.pkl', './data/location_activity_map.pkl',
+                         allowed_poi_ids=agg_allowed_poi, allowed_act_names=agg_allowed_act)
     model = VIMN_Lite(num_pois=len(vec.poi_vocab), num_acts=len(vec.act_vocab),
                       embed_dim=args.embed_dim, hidden_dim=args.hidden_dim)
     head = IntentContrastiveHead(args.hidden_dim)
 
-    dataset = TrajectoryPairDataset(f'./data/{args.year}/{args.id}.pkl', num_neg=4)
+    use_cuda = torch.cuda.is_available() if args.device in ['auto', 'cuda'] else False
+    device = torch.device('cuda' if use_cuda else 'cpu')
+    if args.precision == 'fp16':
+        amp_dtype = torch.float16
+    elif args.precision == 'bf16':
+        amp_dtype = torch.bfloat16
+    else:
+        amp_dtype = torch.float32
+    try:
+        model = model.to(device=device, dtype=(amp_dtype if device.type == 'cuda' else torch.float32))
+        head = head.to(device=device, dtype=(amp_dtype if device.type == 'cuda' else torch.float32))
+    except RuntimeError as e:
+        if 'out of memory' in str(e).lower() and device.type == 'cuda':
+            torch.cuda.empty_cache()
+            print('CUDA OOM, falling back to CPU')
+            device = torch.device('cpu')
+            amp_dtype = torch.float32
+            model = model.to(device)
+            head = head.to(device)
+        else:
+            raise
+
+    dataset = TrajectoryPairDataset(f'./data/{args.year}/{args.id}.pkl', num_neg=args.num_neg)
     loader = DataLoader(dataset, batch_size=args.batch, shuffle=True, drop_last=False)
 
     opt = torch.optim.Adam(list(model.parameters()) + list(head.parameters()), lr=args.lr)
     loss_fn = nn.CrossEntropyLoss()
+    scaler = amp.GradScaler(enabled=(device.type == 'cuda' and amp_dtype == torch.float16))
 
     def encode_one(poi, act, time):
         with torch.set_grad_enabled(True):
-            z = model(poi, act, time)
-            z = head(z)
+            with amp.autocast(enabled=(device.type == 'cuda' and amp_dtype != torch.float32), dtype=amp_dtype if device.type == 'cuda' else None):
+                z = model(poi.to(device), act.to(device), time.to(device))
+                z = head(z)
             z = nn.functional.normalize(z, dim=-1)
         return z
 
+    model.train()
     for epoch in range(args.epochs):
         for anchor, positive, negs in loader:
-            # DataLoader returns lists of strings; keep as Python lists
-            batch_losses = []
-            opt.zero_grad()
-            all_loss = 0.0
-            for i in range(len(anchor)):
-                (poi_a, act_a, time_a), (poi_p, act_p, time_p), (poi_n, act_n, time_n) = vectorize_pair(
-                    vec, anchor[i], positive[i], list(negs[i]))
-                z_a = encode_one(poi_a, act_a, time_a)  # (1, H)
-                z_p = encode_one(poi_p, act_p, time_p)  # (1, H)
-                z_n = encode_one(poi_n, act_n, time_n)  # (N, H)
-
-                # logits: [pos, neg1..negN]
-                pos_sim = (z_a @ z_p.T)  # (1,1)
-                neg_sim = (z_a @ z_n.T)  # (1,N)
-                logits = torch.cat([pos_sim, neg_sim], dim=1)  # (1, 1+N)
-                labels = torch.zeros((1,), dtype=torch.long)  # pos index 0
+            opt.zero_grad(set_to_none=True)
+            poi_a, act_a, time_a = vec.vectorize_sequence(list(anchor))
+            poi_p, act_p, time_p = vec.vectorize_sequence(list(positive))
+            z_a = encode_one(poi_a, act_a, time_a)
+            z_p = encode_one(poi_p, act_p, time_p)
+            logits = z_a @ z_p.T
+            labels = torch.arange(logits.size(0), device=device)
+            with amp.autocast(enabled=(device.type == 'cuda' and amp_dtype != torch.float32), dtype=amp_dtype if device.type == 'cuda' else None):
                 loss = loss_fn(logits, labels)
-                all_loss = all_loss + loss
-            all_loss.backward()
-            opt.step()
+            if scaler.is_enabled():
+                scaler.scale(loss).backward()
+                scaler.step(opt)
+                scaler.update()
+            else:
+                loss.backward()
+                opt.step()
         print(f'Epoch {epoch+1}/{args.epochs} done')
 
-    os.makedirs('./engine/experimental/checkpoints', exist_ok=True)
-    torch.save({'model': model.state_dict(), 'head': head.state_dict()},
-               './engine/experimental/checkpoints/vimn_lite.pt')
-    print('Saved to ./engine/experimental/checkpoints/vimn_lite.pt')
+    ckpt_dir = './engine/experimental/checkpoints'
+    os.makedirs(ckpt_dir, exist_ok=True)
+    suffix = f"y{args.year}_id_{args.id}_ed{args.embed_dim}_hd{args.hidden_dim}_b{args.batch}_ep{args.epochs}_prec{args.precision}"
+    path_default = f"{ckpt_dir}/vimn_lite.pt"
+    path_param = f"{ckpt_dir}/vimn_lite_{suffix}.pt"
+    torch.save({'model': model.state_dict(), 'head': head.state_dict()}, path_default)
+    torch.save({'model': model.state_dict(), 'head': head.state_dict()}, path_param)
+    print(f'Saved to {path_default} and {path_param}')
 
 
 if __name__ == '__main__':

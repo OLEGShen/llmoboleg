@@ -17,13 +17,16 @@ def main():
     train_trajs = att[0]
     test_trajs = att[1]
 
-    vec, model = build_vimn('./data/loc_map.pkl', './data/location_activity_map.pkl', 64, 128)
+    allowed_poi = att[2] if len(att) >= 3 else None
+    allowed_act = att[3] if len(att) >= 4 else None
+    vec, model = build_vimn('./data/loc_map.pkl', './data/location_activity_map.pkl', 64, 128,
+                            allowed_poi_ids=allowed_poi, allowed_act_names=allowed_act)
     ckpt_path = './engine/experimental/checkpoints/vimn_lite.pt'
     head = None
     if os.path.exists(ckpt_path):
         from engine.experimental.vimn import IntentContrastiveHead
         head = IntentContrastiveHead(128)
-        state = torch.load(ckpt_path, map_location='cpu')
+        state = torch.load(ckpt_path, map_location='cpu', weights_only=True)
         model.load_state_dict(state['model'])
         head.load_state_dict(state['head'])
     else:

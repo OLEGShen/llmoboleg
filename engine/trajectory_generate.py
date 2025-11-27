@@ -33,6 +33,13 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False):
             # learning based retrieved
             retrieve_route = person.retriever.retrieve(date_)
             demo = retrieve_route[0]
+            try:
+                if hasattr(person, 'intent_retriever') and person.intent_retriever is not None:
+                    intent_top = person.intent_retriever.retrieve(date_)
+                    if len(intent_top) > 0:
+                        demo = intent_top[0]
+            except Exception:
+                pass
         else:
             # evolving based retrieved
             demo = his_routine[-1]

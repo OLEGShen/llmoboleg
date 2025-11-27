@@ -13,6 +13,8 @@ parser.add_argument('--mode', type=int,
 parser.add_argument('--seed', type=int, default=123)
 parser.add_argument('--id', type=int, default=None)
 parser.add_argument('--fast', action='store_true')
+parser.add_argument('--use_intent', action='store_true')
+parser.add_argument('--intent_ckpt', type=str, default='./engine/experimental/checkpoints/vimn_lite.pt')
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -55,6 +57,8 @@ if __name__ == "__main__":
         # # initialize the retriever
         if args.mode == 0:
             P.init_retriever()
+            if args.use_intent:
+                P.init_intent_retriever(ckpt_path=args.intent_ckpt)
         # mobility generation
         mob_gen(P, mode=args.mode, scenario_tag=scenario_tag[args.dataset], fast=args.fast)
 

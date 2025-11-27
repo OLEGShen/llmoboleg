@@ -5,7 +5,7 @@ from .vimn import VIMN_Lite, DataVectorizer, IntentContrastiveHead
 
 class IntentRetriever:
     def __init__(self, vec: DataVectorizer, model: VIMN_Lite, head: IntentContrastiveHead,
-                 train_trajs, top_k=6, test_trajs=None):
+                 train_trajs, top_k=6, test_trajs=None, time_window=None, weekend_only=None):
         self.vec = vec
         self.model = model
         self.head = head
@@ -21,6 +21,8 @@ class IntentRetriever:
                 self.test_map[d] = t
             except Exception:
                 pass
+        self.time_window = time_window
+        self.weekend_only = weekend_only
 
     def _encode_all(self, trajs):
         intents = []
@@ -51,6 +53,24 @@ class IntentRetriever:
         for idx, zi in enumerate(self.train_intents):
             if zi is None:
                 continue
+            if self.time_window is not None:
+                try:
+                    q_hour = int(q.split(' at ')[-1][:2])
+                    t_hour = int(self.train_trajs[idx].split(' at ')[-1][:2])
+                    if abs(q_hour - t_hour) > self.time_window:
+                        continue
+                except Exception:
+                    pass
+            if self.weekend_only is not None:
+                try:
+                    import datetime
+                    q_date = query
+                    dt_q = datetime.datetime.strptime(q_date, '%Y-%m-%d')
+                    dt_t = datetime.datetime.strptime(self.train_trajs[idx].split(': ')[0].split(' ')[-1], '%Y-%m-%d')
+                    if self.weekend_only and (dt_q.weekday() < 5 or dt_t.weekday() < 5):
+                        continue
+                except Exception:
+                    pass
             sim = torch.dot(zq, zi)
             scores.append((sim.item(), idx))
         scores.sort(reverse=True)

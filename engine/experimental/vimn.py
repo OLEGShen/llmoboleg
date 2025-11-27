@@ -6,8 +6,8 @@ from typing import List, Tuple
 
 
 class DataVectorizer:
-    """负责将原始轨迹数据转换为张量索引"""
-    def __init__(self, loc_map_path: str, act_map_path: str):
+    def __init__(self, loc_map_path: str, act_map_path: str,
+                 allowed_poi_ids=None, allowed_act_names=None):
         with open(loc_map_path, 'rb') as f:
             self.loc_map = pickle.load(f)
         with open(act_map_path, 'rb') as f:
@@ -20,9 +20,26 @@ class DataVectorizer:
                 poi_ids.append(id_part)
             except Exception:
                 continue
-        self.poi_vocab = {pid: i for i, pid in enumerate(sorted(set(poi_ids)))}
-        self.act_vocab = {v: i for i, v in enumerate(sorted(set(self.act_map.values())))}
+        base_poi = sorted(set(poi_ids))
+        if allowed_poi_ids is not None:
+            allow_set = set(int(x) for x in allowed_poi_ids)
+            base_poi = [pid for pid in base_poi if pid in allow_set]
+        self.poi_vocab = {pid: i for i, pid in enumerate(base_poi)}
+        if 'UNK' not in self.poi_vocab:
+            self.poi_vocab['UNK'] = len(self.poi_vocab)
+
         self.id2act = self._align_poi_activities()
+        if allowed_poi_ids is not None:
+            act_from_allowed_poi = sorted(set(self.id2act.get(pid) for pid in base_poi if self.id2act.get(pid) is not None))
+            base_act = act_from_allowed_poi
+        else:
+            base_act = sorted(set(self.act_map.values()))
+        if allowed_act_names is not None:
+            allow_act = set(str(x) for x in allowed_act_names)
+            base_act = [a for a in base_act if str(a) in allow_act]
+        self.act_vocab = {v: i for i, v in enumerate(base_act)}
+        if 'UNK' not in self.act_vocab:
+            self.act_vocab['UNK'] = len(self.act_vocab)
 
     def _align_poi_activities(self):
         """建立 POI ID 到 Activity 的映射。act_map 的 key 是地点名，需按 loc_map 的格式拼接。
@@ -62,25 +79,19 @@ class DataVectorizer:
         for tok in tokens:
             m = re.match(r"^(.*?)#(\d+)\s+at\s+(\d{2}):(\d{2})(?::\d{2})?", tok)
             if not m:
-                # 兼容无 #ID 的情况，尝试从 loc_map 反查
                 m2 = re.match(r"^(.*?)\s+at\s+(\d{2}):(\d{2})(?::\d{2})?", tok)
                 if not m2:
                     continue
-                name = m2.group(1).strip()
                 hour = int(m2.group(2))
-                # 从 loc_map 找到对应 id
-                # loc_map 的 key 形如 "Name (lat, lon)"，此处可能无法恢复经纬度，只能跳过没有 ID 的项
+                poi_idx = self.poi_vocab.get('UNK')
+                act_idx = self.act_vocab.get('UNK')
+                items.append((poi_idx, act_idx, hour))
                 continue
-            name = str(m.group(1)).strip()
             poi_id = int(m.group(2))
             hour = int(m.group(3))
-
-            poi_idx = self.poi_vocab.get(poi_id)
+            poi_idx = self.poi_vocab.get(poi_id, self.poi_vocab.get('UNK'))
             act_name = self.id2act.get(poi_id)
-            act_idx = self.act_vocab.get(act_name) if act_name is not None else None
-
-            if poi_idx is None or act_idx is None:
-                continue
+            act_idx = self.act_vocab.get(act_name, self.act_vocab.get('UNK'))
             items.append((poi_idx, act_idx, hour))
         return items
 

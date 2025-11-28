@@ -79,3 +79,4 @@
 
 **参考**
 - [1] Large Language Models as Urban Residents: An LLM Agent Framework for Personal Mobility Generation, arXiv:2402.14744（强调时间维度自一致与语义模式对齐）https://ar5iv.labs.arxiv.org/html/2402.14744
+https://arxiv.org/pdf/2411.00823

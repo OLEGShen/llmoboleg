@@ -2,8 +2,13 @@ from engine.prompt_template.prompt_paths import *
 from engine.utilities.process_tools import *
 from engine.llm_configs.gpt_structure import *
 from engine.utilities.retrieval_helper import *
+from engine.neuro_bridge import IntentionTranslator
+from engine.vimn_core import VIMN
+from engine.experimental.vimn import DataVectorizer
+from engine.memory_manager import DualMemory
 import os
 import pickle
+import torch
 
 
 def mob_gen(person, mode=0, scenario_tag="normal", fast=False):
@@ -25,6 +30,31 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False):
     reals = {}
     his_routine = person.train_routine_list[-person.top_k_routine:]
     test_iter = person.test_routine_list[:1] if fast else person.test_routine_list[:]
+    try:
+        vec = DataVectorizer('./data/loc_map.pkl', './data/location_activity_map.pkl')
+        vimn = VIMN(len(vec.poi_vocab), len(vec.act_vocab), 128, 256)
+        ckpt_path = './engine/experimental/checkpoints/vimn_best.pt'
+        if not os.path.exists(ckpt_path):
+            ckpt_path = './engine/experimental/checkpoints/vimn_lite.pt'
+        if os.path.exists(ckpt_path):
+            try:
+                state = torch.load(ckpt_path, map_location='cpu')
+                state_dict = state.get('model', state)
+                vimn.load_state_dict(state_dict, strict=False)
+                vimn.eval()
+                print(f"Loaded VIMN checkpoint: {ckpt_path}")
+            except Exception as e:
+                print(f"Warning: failed to load VIMN checkpoint {ckpt_path}: {e}")
+        id2name = [None] * len(vec.act_vocab)
+        for name, idx in vec.act_vocab.items():
+            id2name[idx] = str(name)
+        translator = IntentionTranslator(id2name)
+        dm = DualMemory(vimn, vec, vec.act_vocab)
+    except Exception:
+        vec = None
+        vimn = None
+        translator = None
+        dm = None
     for test_route in test_iter:
         date_ = test_route.split(": ")[0].split(" ")[-1]
         # get motivation
@@ -44,7 +74,7 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False):
             # evolving based retrieved
             demo = his_routine[-1]
 
-        hint = ""  # add condition prompt for conditional generation, i.e., pandemic condition
+        hint = ""
         curr_input = [person.attribute, "Go to " + demo.split(": ")[-1], consecutive_past_days, hint]
 
         prompt = generate_prompt(curr_input, describe_mot_template)
@@ -53,11 +83,16 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False):
         motivation = first2second(motivation)
         his_routine = his_routine[1:] + [test_route]
         weekday = find_detail_weekday(date_)
-        hint = ""
+        vimn_hint = ""
+        try:
+            vimn_hint = person.get_vimn_hint_text(date_, demo)
+        except Exception:
+            vimn_hint = ""
         if motivation is not None:
+            prior = f"[Internal Intuition] {vimn_hint}"
             curr_input = [person.attribute, motivation, date_, ',  '.join(area), weekday, demo,
                           motivation_ways[mode],
-                          hint]
+                          prior]
         prompt = generate_prompt(curr_input, infer_template)
         max_trial = 3 if fast else 10
         trial = 0
@@ -67,6 +102,23 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False):
             try:
                 res = json.loads(contents)
                 valid_generation(person, f"Activities at {date_}: " + ', '.join(res["plan"]))
+                try:
+                    if dm is not None:
+                        for item in res["plan"]:
+                            if " at " in item:
+                                loc, tim = item.split(" at ")
+                                try:
+                                    pid = int(loc.split('#')[-1])
+                                except Exception:
+                                    pid = vec.poi_vocab.get('UNK') if vec is not None else 0
+                                try:
+                                    hour = int(tim.split(':')[0])
+                                except Exception:
+                                    hour = 0
+                                act = vec.id2act.get(pid, 'UNK') if vec is not None else 'UNK'
+                                dm.ingest_location(pid, act, hour)
+                except Exception:
+                    pass
             except Exception as e:
                 print(e)
                 trial += 1

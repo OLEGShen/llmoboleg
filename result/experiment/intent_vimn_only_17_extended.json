@@ -1,0 +1,147 @@
+{
+  "per_id": {
+    "934": [
+      {
+        "date": "2019-10-30",
+        "time_mae": 1,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": 2
+      }
+    ],
+    "914": [
+      {
+        "date": "2019-10-30",
+        "time_mae": 2,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": -1
+      }
+    ],
+    "930": [
+      {
+        "date": "2019-09-15",
+        "time_mae": 4,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": 4
+      }
+    ],
+    "884": [
+      {
+        "date": "2019-10-28",
+        "time_mae": 4,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": 0
+      }
+    ],
+    "835": [
+      {
+        "date": "2019-09-07",
+        "time_mae": 1,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": 1
+      }
+    ],
+    "638": [
+      {
+        "date": "2019-10-19",
+        "time_mae": 2,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": 6
+      }
+    ],
+    "606": [
+      {
+        "date": "2019-10-04",
+        "time_mae": 1,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": 3
+      }
+    ],
+    "540": [
+      {
+        "date": "2019-09-23",
+        "time_mae": 2,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": -8
+      }
+    ],
+    "439": [
+      {
+        "date": "2019-11-15",
+        "time_mae": 5,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": 0
+      }
+    ],
+    "3282": [
+      {
+        "date": "2019-10-06",
+        "time_mae": 0,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": -15
+      }
+    ],
+    "3033": [
+      {
+        "date": "2019-10-19",
+        "time_mae": 5,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": -1
+      }
+    ],
+    "2831": [
+      {
+        "date": "2019-07-05",
+        "time_mae": 1,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": -1
+      }
+    ],
+    "2956": [
+      {
+        "date": "2019-09-25",
+        "time_mae": 2,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": -1
+      }
+    ],
+    "2683": [
+      {
+        "date": "2019-10-26",
+        "time_mae": 1,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": -1
+      }
+    ],
+    "2610": [
+      {
+        "date": "2019-10-28",
+        "time_mae": 3,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": 0
+      }
+    ],
+    "2575": [
+      {
+        "date": "2019-10-21",
+        "time_mae": 2,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": -16
+      }
+    ],
+    "2513": [
+      {
+        "date": "2019-11-03",
+        "time_mae": 8,
+        "cat_jaccard": 0.0,
+        "plan_len_diff": 1
+      }
+    ]
+  },
+  "summary": {
+    "vimn_only": {
+      "time_mae_mean": 2.588235294117647,
+      "cat_jaccard_mean": 0.0,
+      "plan_len_diff_mean": -1.588235294117647
+    }
+  }
+}

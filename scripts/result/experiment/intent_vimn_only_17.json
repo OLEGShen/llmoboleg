@@ -1,0 +1,132 @@
+{
+  "report": {
+    "934": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "914": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "930": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "884": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "835": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "638": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "606": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "540": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "439": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "3282": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "3033": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "2831": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "2956": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "2683": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "2610": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "2575": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    },
+    "2513": {
+      "count": 0,
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    }
+  },
+  "summary": {
+    "vimn_only": {
+      "cat_match": 0.0,
+      "time_match": 0.0,
+      "json_ok": 0.0
+    }
+  },
+  "ids": [
+    934,
+    914,
+    930,
+    884,
+    835,
+    638,
+    606,
+    540,
+    439,
+    3282,
+    3033,
+    2831,
+    2956,
+    2683,
+    2610,
+    2575,
+    2513
+  ]
+}

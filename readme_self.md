@@ -80,3 +80,18 @@
 **参考**
 - [1] Large Language Models as Urban Residents: An LLM Agent Framework for Personal Mobility Generation, arXiv:2402.14744（强调时间维度自一致与语义模式对齐）https://ar5iv.labs.arxiv.org/html/2402.14744
 https://arxiv.org/pdf/2411.00823
+
+
+**首次实验 2019年 baseline 对比 VIMN 集成（意图检索替换 demo）**
+Location Accuracy (Loc-ACC) Evaluation
+Agent ID: 934, Dataset: 2019
+----------------------------------------
+Baseline Loc-ACC: 0.0556 (5/90 correct locations)
+VIMN Loc-ACC:     0.0444 (4/90 correct locations)
+----------------------------------------
+Baseline Acc@1/5/10:
+  Acc@1: 0.3846  Acc@5: 0.3846  Acc@10: 0.3846
+VIMN Acc@1/5/10:
+  Acc@1: 0.7500  Acc@5: 0.7500  Acc@10: 0.7500
+  Delta (VIMN - Baseline): -0.0111
+  

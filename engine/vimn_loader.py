@@ -15,7 +15,10 @@ def load_vimn_gru_ckpt(ckpt_path: str):
     hidden_dim = int(meta.get('hidden_dim', 256))
     vec = DataVectorizer('./data/loc_map.pkl', './data/location_activity_map.pkl',
                          allowed_poi_ids=allowed_poi, allowed_act_names=allowed_act)
-    model = VIMN(len(vec.poi_vocab), len(vec.act_vocab), embed_dim, hidden_dim)
+    num_users = meta.get('num_users')
+    user_embed_dim = meta.get('user_embed_dim')
+    model = VIMN(len(vec.poi_vocab), len(vec.act_vocab), embed_dim, hidden_dim,
+                 num_users=num_users, user_embed_dim=user_embed_dim)
     sd = state.get('model', state)
     model.load_state_dict(sd, strict=True)
     model.eval()

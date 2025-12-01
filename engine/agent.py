@@ -57,18 +57,18 @@ class Person:
                                                 time_window=2,
                                                 weekend_only=None)
 
-    def init_neuro_symbolic(self, embed_dim: int = 128, hidden_dim: int = 256, allowed_poi_ids=None, allowed_act_names=None):
-        self.vec = DataVectorizer('./data/loc_map.pkl', './data/location_activity_map.pkl',
+    def init_neuro_symbolic(self, embed_dim: int = 128, hidden_dim: int = 256, allowed_poi_ids=None, allowed_act_names=None, user_idx: int = None, pre_vec=None, pre_vimn=None):
+        self.vec = pre_vec if pre_vec is not None else DataVectorizer('./data/loc_map.pkl', './data/location_activity_map.pkl',
                                   allowed_poi_ids=allowed_poi_ids,
                                   allowed_act_names=allowed_act_names)
-        self.vimn = VIMN(num_pois=len(self.vec.poi_vocab), num_acts=len(self.vec.act_vocab),
+        self.vimn = pre_vimn if pre_vimn is not None else VIMN(num_pois=len(self.vec.poi_vocab), num_acts=len(self.vec.act_vocab),
                          embed_dim=embed_dim, hidden_dim=hidden_dim)
         id2name = [None] * len(self.vec.act_vocab)
         for name, idx in self.vec.act_vocab.items():
             if idx < len(id2name):
                 id2name[idx] = str(name)
         self.intent_translator = IntentionTranslator(id2name)
-        self.dual_memory = DualMemory(self.vimn, self.vec, self.vec.act_vocab)
+        self.dual_memory = DualMemory(self.vimn, self.vec, self.vec.act_vocab, user_idx=user_idx)
 
     def get_vimn_hint_text(self, date_: str, demo: str = None):
         if self.dual_memory is None:
@@ -96,7 +96,11 @@ class Person:
             last = self.train_routine_list[-1]
             try:
                 poi_ids, act_ids, time_ids = self.vec.vectorize_sequence([last])
-                h = self.vimn.forward(poi_ids, act_ids, time_ids)
+                u = None
+                if self.dual_memory is not None and self.dual_memory.user_idx is not None:
+                    import torch as _t
+                    u = _t.tensor([self.dual_memory.user_idx], dtype=_t.long)
+                h = self.vimn.forward(poi_ids, act_ids, time_ids, user_ids=u)
                 self.dual_memory.h = h
             except Exception:
                 pass

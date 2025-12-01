@@ -7,12 +7,13 @@ from engine.vimn_core import VIMN
 from engine.experimental.vimn import DataVectorizer
 from engine.memory_manager import DualMemory
 from engine.vimn_loader import load_vimn_gru_ckpt
+import json
 import os
 import pickle
 import torch
 
 
-def mob_gen(person, mode=0, scenario_tag="normal", fast=False):
+def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True):
     infer_template = "./engine/prompt_template/one-shot_infer_mot.txt"
     # mode = 0 for learning based retrieval, 1 for evolving based retrieval
     describe_mot_template = "./engine/" + motivation_infer_prompt_paths[mode]
@@ -32,15 +33,30 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False):
     his_routine = person.train_routine_list[-person.top_k_routine:]
     test_iter = person.test_routine_list[:1] if fast else person.test_routine_list[:]
     try:
-        ckpt_path = './engine/experimental/checkpoints/vimn_best_gru.pt'
-        vec, vimn, meta = load_vimn_gru_ckpt(ckpt_path)
+        if scenario_tag == 'normal':
+            ckpt_global = './engine/experimental/checkpoints/vimn_global_gru_2019.pt'
+        elif scenario_tag == 'abnormal':
+            ckpt_global = './engine/experimental/checkpoints/vimn_global_gru_2021.pt'
+        else:
+            ckpt_global = './engine/experimental/checkpoints/vimn_global_gru_20192021.pt'
+        ckpt_id = f"./engine/experimental/checkpoints/batch/vimn_best_gru_{'2019' if scenario_tag=='normal' else '2021'}_{person.id}.pt"
+        vec, vimn, meta = None, None, None
+        if os.path.exists(ckpt_global):
+            vec, vimn, meta = load_vimn_gru_ckpt(ckpt_global)
+            u2i = meta.get('user2idx', {})
+            user_idx = u2i.get(str(person.id))
+        elif os.path.exists(ckpt_id):
+            vec, vimn, meta = load_vimn_gru_ckpt(ckpt_id)
+            user_idx = None
+        else:
+            vec, vimn, meta, user_idx = None, None, None, None
         id2name = [None] * len(vec.act_vocab)
         for name, idx in vec.act_vocab.items():
             id2name[idx] = str(name)
         translator = IntentionTranslator(id2name)
-        dm = DualMemory(vimn, vec, vec.act_vocab)
+        dm = DualMemory(vimn, vec, vec.act_vocab, user_idx=user_idx)
         try:
-            person.init_neuro_symbolic(allowed_poi_ids=meta.get('allowed_poi_ids'), allowed_act_names=meta.get('allowed_act_names'))
+            person.init_neuro_symbolic(allowed_poi_ids=meta.get('allowed_poi_ids'), allowed_act_names=meta.get('allowed_act_names'), user_idx=user_idx, pre_vec=vec, pre_vimn=vimn)
         except Exception:
             pass
     except Exception:
@@ -77,10 +93,11 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False):
         his_routine = his_routine[1:] + [test_route]
         weekday = find_detail_weekday(date_)
         vimn_hint = ""
-        try:
-            vimn_hint = person.get_vimn_hint_text(date_, demo)
-        except Exception:
-            vimn_hint = ""
+        if use_vimn:
+            try:
+                vimn_hint = person.get_vimn_hint_text(date_, demo)
+            except Exception:
+                vimn_hint = ""
         if motivation is not None:
             prior = f"[Internal Intuition] {vimn_hint}"
             curr_input = [person.attribute, motivation, date_, ',  '.join(area), weekday, demo,

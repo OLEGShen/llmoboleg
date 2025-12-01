@@ -1,0 +1,27 @@
+{
+  "934": {
+    "path": "./engine/experimental/checkpoints/batch/vimn_best_gru_2019_934.pt",
+    "duration_sec": 0.30289721488952637,
+    "samples": 287
+  },
+  "835": {
+    "path": "./engine/experimental/checkpoints/batch/vimn_best_gru_2019_835.pt",
+    "duration_sec": 0.15682363510131836,
+    "samples": 173
+  },
+  "4105": {
+    "path": "./engine/experimental/checkpoints/batch/vimn_best_gru_2019_4105.pt",
+    "duration_sec": 0.33306336402893066,
+    "samples": 334
+  },
+  "4396": {
+    "path": "./engine/experimental/checkpoints/batch/vimn_best_gru_2019_4396.pt",
+    "duration_sec": 0.19756650924682617,
+    "samples": 470
+  },
+  "2513": {
+    "path": "./engine/experimental/checkpoints/batch/vimn_best_gru_2019_2513.pt",
+    "duration_sec": 0.14456844329833984,
+    "samples": 347
+  }
+}

@@ -6,6 +6,7 @@ from engine.neuro_bridge import IntentionTranslator
 from engine.vimn_core import VIMN
 from engine.experimental.vimn import DataVectorizer
 from engine.memory_manager import DualMemory
+from engine.vimn_loader import load_vimn_gru_ckpt
 import os
 import pickle
 import torch
@@ -31,25 +32,17 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False):
     his_routine = person.train_routine_list[-person.top_k_routine:]
     test_iter = person.test_routine_list[:1] if fast else person.test_routine_list[:]
     try:
-        vec = DataVectorizer('./data/loc_map.pkl', './data/location_activity_map.pkl')
-        vimn = VIMN(len(vec.poi_vocab), len(vec.act_vocab), 128, 256)
-        ckpt_path = './engine/experimental/checkpoints/vimn_best.pt'
-        if not os.path.exists(ckpt_path):
-            ckpt_path = './engine/experimental/checkpoints/vimn_lite.pt'
-        if os.path.exists(ckpt_path):
-            try:
-                state = torch.load(ckpt_path, map_location='cpu')
-                state_dict = state.get('model', state)
-                vimn.load_state_dict(state_dict, strict=False)
-                vimn.eval()
-                print(f"Loaded VIMN checkpoint: {ckpt_path}")
-            except Exception as e:
-                print(f"Warning: failed to load VIMN checkpoint {ckpt_path}: {e}")
+        ckpt_path = './engine/experimental/checkpoints/vimn_best_gru.pt'
+        vec, vimn, meta = load_vimn_gru_ckpt(ckpt_path)
         id2name = [None] * len(vec.act_vocab)
         for name, idx in vec.act_vocab.items():
             id2name[idx] = str(name)
         translator = IntentionTranslator(id2name)
         dm = DualMemory(vimn, vec, vec.act_vocab)
+        try:
+            person.init_neuro_symbolic(allowed_poi_ids=meta.get('allowed_poi_ids'), allowed_act_names=meta.get('allowed_act_names'))
+        except Exception:
+            pass
     except Exception:
         vec = None
         vimn = None

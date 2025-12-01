@@ -57,8 +57,10 @@ class Person:
                                                 time_window=2,
                                                 weekend_only=None)
 
-    def init_neuro_symbolic(self, embed_dim: int = 128, hidden_dim: int = 256):
-        self.vec = DataVectorizer('./data/loc_map.pkl', './data/location_activity_map.pkl')
+    def init_neuro_symbolic(self, embed_dim: int = 128, hidden_dim: int = 256, allowed_poi_ids=None, allowed_act_names=None):
+        self.vec = DataVectorizer('./data/loc_map.pkl', './data/location_activity_map.pkl',
+                                  allowed_poi_ids=allowed_poi_ids,
+                                  allowed_act_names=allowed_act_names)
         self.vimn = VIMN(num_pois=len(self.vec.poi_vocab), num_acts=len(self.vec.act_vocab),
                          embed_dim=embed_dim, hidden_dim=hidden_dim)
         id2name = [None] * len(self.vec.act_vocab)

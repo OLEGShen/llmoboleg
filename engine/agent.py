@@ -110,6 +110,31 @@ class Person:
         logits = self.vimn.translate(h)
         return self.intent_translator.get_natural_language_hint(logits)
 
+    def get_vimn_topk(self, date_: str, demo: str = None, top_k: int = 10):
+        if self.dual_memory is None:
+            self.init_neuro_symbolic()
+        h = self.dual_memory.get_state()
+        if h is None and self.train_routine_list:
+            last = self.train_routine_list[-1]
+            try:
+                poi_ids, act_ids, time_ids = self.vec.vectorize_sequence([last])
+                u = None
+                if self.dual_memory is not None and self.dual_memory.user_idx is not None:
+                    import torch as _t
+                    u = _t.tensor([self.dual_memory.user_idx], dtype=_t.long)
+                h = self.vimn.forward(poi_ids, act_ids, time_ids, user_ids=u)
+                self.dual_memory.h = h
+            except Exception:
+                pass
+        if h is None:
+            import torch
+            h = torch.zeros((1, self.vimn.gru.hidden_size))
+        logits = self.vimn.translate(h)
+        try:
+            return self.intent_translator.get_topk(logits, top_k=top_k)
+        except Exception:
+            return []
+
     def ingest_generated_step(self, loc_with_id: str, time_str: str):
         if self.dual_memory is None:
             self.init_neuro_symbolic()

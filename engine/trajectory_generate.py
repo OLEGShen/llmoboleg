@@ -30,6 +30,7 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True):
 
     results = {}
     reals = {}
+    details = {}
     his_routine = person.train_routine_list[-person.top_k_routine:]
     test_iter = person.test_routine_list[:1] if fast else person.test_routine_list[:]
     try:
@@ -98,6 +99,12 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True):
                 vimn_hint = person.get_vimn_hint_text(date_, demo)
             except Exception:
                 vimn_hint = ""
+        vimn_topk = []
+        if use_vimn:
+            try:
+                vimn_topk = person.get_vimn_topk(date_, demo, top_k=10)
+            except Exception:
+                vimn_topk = []
         if motivation is not None:
             prior = f"[Internal Intuition] {vimn_hint}"
             curr_input = [person.attribute, motivation, date_, ',  '.join(area), weekday, demo,
@@ -106,6 +113,7 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True):
         prompt = generate_prompt(curr_input, infer_template)
         max_trial = 3 if fast else 10
         trial = 0
+        contents = ""
         while trial < max_trial:
             contents = execute_prompt(prompt, person.llm,
                                       objective=f"one_shot_infer_response_{len(results) + 1}/{len(person.test_routine_list)}_{trial}")
@@ -141,6 +149,19 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True):
         print("Real: ", test_route)
         reals[date_] = test_route
         results[date_] = f"Activities at {date_}: " + ', '.join(res["plan"])
+        try:
+            details[date_] = {
+                "motivation": motivation,
+                "vimn_hint": vimn_hint,
+                "vimn_topk": vimn_topk,
+                "area": area,
+                "weekday": weekday,
+                "demo": demo,
+                "raw_contents": contents,
+                "plan": res.get("plan", [])
+            }
+        except Exception:
+            pass
         if mode == 0:
             person.retriever.nodes.append(reals[date_])
     # dump pkl
@@ -148,5 +169,10 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True):
         pickle.dump(results, f)
     with open(ground_truth_path + "results.pkl", "wb") as f:
         pickle.dump(reals, f)
+    try:
+        with open(generation_path + "details.pkl", "wb") as f:
+            pickle.dump(details, f)
+    except Exception:
+        pass
     print(generation_path)
     print(ground_truth_path)

@@ -7,13 +7,14 @@ from engine.vimn_core import VIMN
 from engine.experimental.vimn import DataVectorizer
 from engine.memory_manager import DualMemory
 from engine.vimn_loader import load_vimn_gru_ckpt
+from engine.memento_policy import MementoPolicyNet
 import json
 import os
 import pickle
 import torch
 
 
-def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True):
+def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, use_memento=False):
     infer_template = "./engine/prompt_template/one-shot_infer_mot.txt"
     # mode = 0 for learning based retrieval, 1 for evolving based retrieval
     describe_mot_template = "./engine/" + motivation_infer_prompt_paths[mode]
@@ -73,6 +74,40 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True):
             # learning based retrieved
             retrieve_route = person.retriever.retrieve(date_)
             demo = retrieve_route[0]
+            if use_memento:
+                try:
+                    memento_path = './engine/experimental/checkpoints/memento_policy.pt'
+                    if os.path.exists(memento_path):
+                        st = torch.load(memento_path, map_location='cpu')
+                        input_dim = st.get('input_dim')
+                        hidden_dim = st.get('hidden_dim', 512)
+                        mp = MementoPolicyNet(input_dim=input_dim if input_dim is not None else (int(1440/60)*len(set(person.loc_cat.values()))*2), hidden_dim=hidden_dim)
+                        mp.load_state_dict(st['state_dict'])
+                        mp.eval()
+                        act_map_local = _build_act_map(person.loc_cat)
+                        state_vec = _route_vec(demo, person.loc_cat, act_map_local)
+                        cands = list(retrieve_route)
+                        try:
+                            if hasattr(person, 'intent_retriever') and person.intent_retriever is not None:
+                                intent_top = person.intent_retriever.retrieve(date_)
+                                if isinstance(intent_top, list) and len(intent_top) > 0:
+                                    cands = list(dict.fromkeys(list(retrieve_route) + intent_top))
+                        except Exception:
+                            pass
+                        if len(cands) > 0:
+                            se = state_vec.unsqueeze(0).expand(len(cands), -1)
+                            me_list = []
+                            for r in cands:
+                                v = _route_vec(r, person.loc_cat, act_map_local)
+                                me_list.append(v)
+                            me = torch.stack(me_list, dim=0)
+                            x = torch.cat([se, me], dim=-1)
+                            with torch.no_grad():
+                                scores = mp(x)
+                            idx = int(torch.argmax(scores).item())
+                            demo = cands[idx]
+                except Exception:
+                    pass
             try:
                 if hasattr(person, 'intent_retriever') and person.intent_retriever is not None:
                     intent_top = person.intent_retriever.retrieve(date_)
@@ -176,3 +211,34 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True):
         pass
     print(generation_path)
     print(ground_truth_path)
+def _extract_items(route: str):
+    part = route.split(": ", 1)[1]
+    segs = [s.strip() for s in part.split(',')]
+    items = []
+    import re
+    for seg in segs:
+        m_loc = re.search(r"(.+?)#(\d+)", seg)
+        m_tm = re.search(r"(\d{2}):(\d{2})", seg)
+        if m_loc and m_tm:
+            loc_name = m_loc.group(1).strip()
+            pid = int(m_loc.group(2))
+            hh = int(m_tm.group(1)); mm = int(m_tm.group(2))
+            items.append((loc_name, pid, hh*60+mm))
+    return items
+
+def _build_act_map(loc_cat: dict):
+    acts = sorted(set(loc_cat.values()))
+    return {a: i for i, a in enumerate(acts)}
+
+def _route_vec(route: str, loc_cat: dict, act_map: dict, interval: int = 60):
+    bins = int(1440 / interval)
+    import torch as _t
+    mat = _t.zeros((bins, len(act_map)), dtype=_t.float32)
+    items = _extract_items(route)
+    for loc_name, _, tmin in items:
+        cat = loc_cat.get(loc_name)
+        if cat is None or cat not in act_map:
+            continue
+        b = max(0, min(bins-1, tmin // interval))
+        mat[b, act_map[cat]] += 1.0
+    return mat.reshape(-1)

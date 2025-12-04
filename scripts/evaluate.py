@@ -21,13 +21,10 @@ def parse_loc_ids(route_str):
     if not isinstance(route_str, str):
         return []
     try:
-        # Find the part after the date, e.g., "Home #1 at 08:00, Office #2 at 09:00, ..."
         plan_part = route_str.split(': ', 1)[-1]
-        # Use regex to find all occurrences of '#<number>'
         loc_ids = re.findall(r'#(\d+)', plan_part)
         return [int(pid) for pid in loc_ids]
     except Exception as e:
-        # print(f"Could not parse route string: {route_str}, Error: {e}")
         return []
 
 def parse_first_poi_id(route_str):
@@ -62,34 +59,27 @@ def calculate_loc_acc(gen_map, gt_map):
     """Calculates Location Accuracy (Loc-ACC)."""
     total_hits = 0
     total_gt_locs = 0
-
     dates = sorted(set(gen_map.keys()) & set(gt_map.keys()))
     if not dates:
         return 0.0, 0, 0
-
     for d in dates:
         gen_route = gen_map.get(d)
         gt_route = gt_map.get(d)
-
         gen_locs = parse_loc_ids(gen_route)
         gt_locs = parse_loc_ids(gt_route)
-
         if not gt_locs:
             continue
-
         total_gt_locs += len(gt_locs)
-        
-        # Compare element-wise up to the minimum length of the two sequences
         min_len = min(len(gen_locs), len(gt_locs))
         for i in range(min_len):
             if gen_locs[i] == gt_locs[i]:
                 total_hits += 1
-    
     accuracy = total_hits / total_gt_locs if total_gt_locs > 0 else 0.0
     return accuracy, total_hits, total_gt_locs
 
 def build_geo_map(vec):
     m = {}
+    if not vec: return m
     for k, v in vec.loc_map.items():
         try:
             pid = int(str(v).split('#')[-1])
@@ -165,7 +155,7 @@ def jsd(p, q, eps=1e-12):
         return np.sum(a*np.log(a/b))
     return 0.5*kl(p, m) + 0.5*kl(q, m)
 
-def dard_distribution(route_str, vec, time_bins=144):
+def dard_distribution(route_str, vec, time_bins=24):
     seq = parse_plan_items(route_str)
     counts = np.zeros((time_bins, len(vec.act_vocab)), dtype=np.float64)
     for pid, tmin in seq:
@@ -178,7 +168,7 @@ def dard_distribution(route_str, vec, time_bins=144):
         counts /= s
     return counts.reshape(-1)
 
-def stvd_distribution(route_str, id2geo, time_bins=144, lat_bins=20, lon_bins=20):
+def stvd_distribution(route_str, id2geo, time_bins=24, lat_bins=20, lon_bins=20):
     seq = parse_plan_items(route_str)
     if len(seq) == 0 or len(id2geo) == 0:
         return np.zeros(time_bins*lat_bins*lon_bins)
@@ -203,133 +193,161 @@ def stvd_distribution(route_str, id2geo, time_bins=144, lat_bins=20, lon_bins=20
     return counts.reshape(-1)
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate trajectory generation results with Loc-ACC.")
+    parser = argparse.ArgumentParser(description="Evaluate trajectory generation results.")
     parser.add_argument('--id', type=int, required=True, help='Agent ID to evaluate.')
-    parser.add_argument('--dataset', type=str, default='2019', help='Dataset used for the test (e.g., 2019).')
+    parser.add_argument('--dataset', type=str, default='2019', help='Dataset used for the test.')
+    parser.add_argument('--exp_dir', type=str, required=True, help='Directory containing experiment result files (*_results.pkl).')
     args = parser.parse_args()
 
-    ab_test_dir = './result/ab_test'
-    exp_dir = os.path.join(ab_test_dir, f'exp_{args.dataset}_{args.id}') if args.dataset != '2019' else os.path.join(ab_test_dir, f'exp_2019_{args.id}')
-    scenario_tag = {'2019': 'normal', '2021': 'abnormal', '20192021': 'normal_abnormal'}[args.dataset]
+    scenario_tag = {'2019': 'normal', '2021': 'abnormal', '20192021': 'normal_abnormal'}.get(args.dataset, 'normal')
     gt_dir = f"./result/{scenario_tag}/ground_truth/llm_l/{args.id}/"
-
-    # --- Load Data ---
-    baseline_path = os.path.join(ab_test_dir, f'single_{args.dataset}_{args.id}_baseline_results.pkl')
-    vimn_path = os.path.join(ab_test_dir, f'single_{args.dataset}_{args.id}_vimn_results.pkl')
-    # Prefer new exp_dir copies if available
-    if os.path.exists(os.path.join(exp_dir, 'baseline_details.pkl')):
-        baseline_path = os.path.join(exp_dir, 'baseline_results.pkl') if os.path.exists(os.path.join(exp_dir, 'baseline_results.pkl')) else baseline_path
-        vimn_path = os.path.join(exp_dir, 'vimn_results.pkl') if os.path.exists(os.path.join(exp_dir, 'vimn_results.pkl')) else vimn_path
     gt_path = os.path.join(gt_dir, 'results.pkl')
-
-    gen_map_base = read_pkl(baseline_path)
-    gen_map_vimn = read_pkl(vimn_path)
     gt_map = read_pkl(gt_path)
-
-    if gen_map_base is None or gen_map_vimn is None or gt_map is None:
-        print("\nOne or more result files are missing. Please run the A/B test first:")
-        print(f"python scripts/run_single_ab_test.py --dataset {args.dataset} --id {args.id}")
+    if gt_map is None:
+        print(f"Ground truth file not found at {gt_path}")
         return
 
-    # --- Calculate Metrics ---
-    acc_base, hits_base, total_locs = calculate_loc_acc(gen_map_base, gt_map)
-    acc_vimn, hits_vimn, _ = calculate_loc_acc(gen_map_vimn, gt_map)
-    # Acc@k using LLM generated candidate locations (independent of VIMN output)
-    acck_base = compute_acck(gen_map_base, gt_map, ks=(1, 5, 10))
-    acck_vimn = compute_acck(gen_map_vimn, gt_map, ks=(1, 5, 10))
-
+    # --- Load VEC and GEO data ---
     vec = None
     try:
-        ckpt_global = './engine/experimental/checkpoints/vimn_global_gru_2019.pt' if args.dataset == '2019' else ('./engine/experimental/checkpoints/vimn_global_gru_2021.pt' if args.dataset == '2021' else './engine/experimental/checkpoints/vimn_global_gru_20192021.pt')
+        ckpt_global = f'./engine/experimental/checkpoints/vimn_global_gru_{args.dataset}.pt'
         if os.path.exists(ckpt_global):
             vec, _, _ = load_vimn_gru_ckpt(ckpt_global)
-    except Exception:
-        vec = None
+    except Exception as e:
+        print(f"Could not load VIMN vectorizer: {e}")
     id2geo = build_geo_map(vec) if vec is not None else {}
 
-    sd_base = []
-    sd_vimn = []
-    sd_gt = []
-    si_base = []
-    si_vimn = []
-    si_gt = []
-    dard_base = None
-    dard_vimn = None
-    dard_gt = None
-    stvd_base = None
-    stvd_vimn = None
-    stvd_gt = None
-    dates = sorted(set(gen_map_base.keys()) & set(gen_map_vimn.keys()) & set(gt_map.keys()))
-    for d in dates:
-        rb = gen_map_base.get(d); rv = gen_map_vimn.get(d); rg = gt_map.get(d)
-        sd_base += step_distance_series(rb, id2geo)
-        sd_vimn += step_distance_series(rv, id2geo)
-        sd_gt += step_distance_series(rg, id2geo)
-        si_base += step_interval_series(rb)
-        si_vimn += step_interval_series(rv)
-        si_gt += step_interval_series(rg)
-        if vec is not None:
-            db = dard_distribution(rb, vec)
-            dv = dard_distribution(rv, vec)
-            dg = dard_distribution(rg, vec)
-            dard_base = db if dard_base is None else dard_base + db
-            dard_vimn = dv if dard_vimn is None else dard_vimn + dv
-            dard_gt = dg if dard_gt is None else dard_gt + dg
-        sb = stvd_distribution(rb, id2geo)
-        sv = stvd_distribution(rv, id2geo)
-        sg = stvd_distribution(rg, id2geo)
-        stvd_base = sb if stvd_base is None else stvd_base + sb
-        stvd_vimn = sv if stvd_vimn is None else stvd_vimn + sv
-        stvd_gt = sg if stvd_gt is None else stvd_gt + sg
+    # --- Dynamically Load Experiment Data ---
+    exp_results = {}
+    try:
+        for f in os.listdir(args.exp_dir):
+            if f.endswith("_results.pkl"):
+                name = f.replace("_results.pkl", "")
+                path = os.path.join(args.exp_dir, f)
+                data = read_pkl(path)
+                if data:
+                    exp_results[name] = data
+    except FileNotFoundError:
+        print(f"Error: Experiment directory not found at {args.exp_dir}")
+        return
+    
+    if not exp_results:
+        print(f"No '*_results.pkl' files found in {args.exp_dir}")
+        return
 
-    sd_bins = np.linspace(0.0, max(sd_gt + sd_base + sd_vimn + [1.0]), 21)
-    si_bins = np.linspace(0.0, max(si_gt + si_base + si_vimn + [60.0]), 25)
-    sd_p_base = hist_prob(sd_base, sd_bins)
-    sd_p_vimn = hist_prob(sd_vimn, sd_bins)
-    sd_p_gt = hist_prob(sd_gt, sd_bins)
-    si_p_base = hist_prob(si_base, si_bins)
-    si_p_vimn = hist_prob(si_vimn, si_bins)
-    si_p_gt = hist_prob(si_gt, si_bins)
-    jsd_sd_base = jsd(sd_p_base, sd_p_gt)
-    jsd_sd_vimn = jsd(sd_p_vimn, sd_p_gt)
-    jsd_si_base = jsd(si_p_base, si_p_gt)
-    jsd_si_vimn = jsd(si_p_vimn, si_p_gt)
-    jsd_dard_base = jsd(dard_base, dard_gt) if (dard_base is not None and dard_gt is not None) else None
-    jsd_dard_vimn = jsd(dard_vimn, dard_gt) if (dard_vimn is not None and dard_gt is not None) else None
-    jsd_stvd_base = jsd(stvd_base, stvd_gt) if (stvd_base is not None and stvd_gt is not None) else None
-    jsd_stvd_vimn = jsd(stvd_vimn, stvd_gt) if (stvd_vimn is not None and stvd_gt is not None) else None
+    # --- Calculate Metrics for each experiment ---
+    all_metrics = {}
+    common_dates = set(gt_map.keys())
+    for name, gen_map in exp_results.items():
+        common_dates &= set(gen_map.keys())
+    dates = sorted(list(common_dates))
+
+    for name, gen_map in exp_results.items():
+        metrics = {}
+        acc, hits, total_locs = calculate_loc_acc(gen_map, gt_map)
+        metrics['Loc-ACC'] = acc
+        metrics['hits'] = hits
+        
+        acck = compute_acck(gen_map, gt_map, ks=(1, 5, 10))
+        metrics.update(acck)
+
+        sd_series, si_series, dard_dist, stvd_dist = [], [], None, None
+        for d in dates:
+            route_str = gen_map.get(d)
+            sd_series.extend(step_distance_series(route_str, id2geo))
+            si_series.extend(step_interval_series(route_str))
+            if vec:
+                dist = dard_distribution(route_str, vec)
+                dard_dist = dist if dard_dist is None else dard_dist + dist
+            s_dist = stvd_distribution(route_str, id2geo)
+            stvd_dist = s_dist if stvd_dist is None else stvd_dist + s_dist
+        
+        metrics['sd_series'] = sd_series
+        metrics['si_series'] = si_series
+        metrics['dard_dist'] = dard_dist
+        metrics['stvd_dist'] = stvd_dist
+        metrics['total_locs'] = total_locs
+        all_metrics[name] = metrics
+
+    # Calculate GT metrics once
+    gt_sd_series, gt_si_series, gt_dard_dist, gt_stvd_dist = [], [], None, None
+    for d in dates:
+        route_str = gt_map.get(d)
+        gt_sd_series.extend(step_distance_series(route_str, id2geo))
+        gt_si_series.extend(step_interval_series(route_str))
+        if vec:
+            dist = dard_distribution(route_str, vec)
+            gt_dard_dist = dist if gt_dard_dist is None else gt_dard_dist + dist
+        s_dist = stvd_distribution(route_str, id2geo)
+        gt_stvd_dist = s_dist if gt_stvd_dist is None else gt_stvd_dist + s_dist
+
+    # Calculate JSD vs GT
+    all_sds = gt_sd_series + [s for name in all_metrics for s in all_metrics[name]['sd_series']]
+    all_sis = gt_si_series + [s for name in all_metrics for s in all_metrics[name]['si_series']]
+    sd_bins = np.linspace(0.0, max(all_sds + [1.0]), 21)
+    si_bins = np.linspace(0.0, max(all_sis + [60.0]), 25)
+    gt_sd_p = hist_prob(gt_sd_series, sd_bins)
+    gt_si_p = hist_prob(gt_si_series, si_bins)
+
+    for name, metrics in all_metrics.items():
+        sd_p = hist_prob(metrics['sd_series'], sd_bins)
+        si_p = hist_prob(metrics['si_series'], si_bins)
+        metrics['JSD_SD'] = jsd(sd_p, gt_sd_p)
+        metrics['JSD_SI'] = jsd(si_p, gt_si_p)
+        if vec and metrics['dard_dist'] is not None and gt_dard_dist is not None:
+            metrics['JSD_DARD'] = jsd(metrics['dard_dist'], gt_dard_dist)
+        if metrics['stvd_dist'] is not None and gt_stvd_dist is not None:
+            metrics['JSD_STVD'] = jsd(metrics['stvd_dist'], gt_stvd_dist)
 
     # --- Print Report ---
-    print("\n" + "="*40)
-    print(f"Location Accuracy (Loc-ACC) Evaluation")
-    print(f"Agent ID: {args.id}, Dataset: {args.dataset}")
-    print("-"*40)
-    print(f"Baseline Loc-ACC: {acc_base:.4f} ({hits_base}/{total_locs} correct locations)")
-    print(f"VIMN Loc-ACC:     {acc_vimn:.4f} ({hits_vimn}/{total_locs} correct locations)")
-    print("-"*40)
-    print("Baseline Acc@1/5/10:")
-    print(f"  Acc@1: {acck_base.get('Acc@1', 0.0):.4f}  Acc@5: {acck_base.get('Acc@5', 0.0):.4f}  Acc@10: {acck_base.get('Acc@10', 0.0):.4f}")
-    print("VIMN Acc@1/5/10:")
-    print(f"  Acc@1: {acck_vimn.get('Acc@1', 0.0):.4f}  Acc@5: {acck_vimn.get('Acc@5', 0.0):.4f}  Acc@10: {acck_vimn.get('Acc@10', 0.0):.4f}")
-    print("-"*40)
-    print("Step Distance (km):")
-    print(f"  Baseline mean: {np.mean(sd_base) if len(sd_base)>0 else 0.0:.4f}  median: {np.median(sd_base) if len(sd_base)>0 else 0.0:.4f}  JSD vs GT: {jsd_sd_base:.4f}")
-    print(f"  VIMN     mean: {np.mean(sd_vimn) if len(sd_vimn)>0 else 0.0:.4f}  median: {np.median(sd_vimn) if len(sd_vimn)>0 else 0.0:.4f}  JSD vs GT: {jsd_sd_vimn:.4f}")
-    print("Step Interval (min):")
-    print(f"  Baseline mean: {np.mean(si_base) if len(si_base)>0 else 0.0:.4f}  median: {np.median(si_base) if len(si_base)>0 else 0.0:.4f}  JSD vs GT: {jsd_si_base:.4f}")
-    print(f"  VIMN     mean: {np.mean(si_vimn) if len(si_vimn)>0 else 0.0:.4f}  median: {np.median(si_vimn) if len(si_vimn)>0 else 0.0:.4f}  JSD vs GT: {jsd_si_vimn:.4f}")
-    if jsd_dard_base is not None:
-        print("DARD Jensen-Shannon divergence:")
-        print(f"  Baseline: {jsd_dard_base:.4f}  VIMN: {jsd_dard_vimn:.4f}")
-    if jsd_stvd_base is not None:
-        print("STVD Jensen-Shannon divergence:")
-        print(f"  Baseline: {jsd_stvd_base:.4f}  VIMN: {jsd_stvd_vimn:.4f}")
-    delta = acc_vimn - acc_base
-    improvement = (delta / acc_base * 100) if acc_base > 0 else float('inf')
-    print(f"Delta (VIMN - Baseline): {delta:+.4f}")
-    if delta > 0:
-        print(f"Relative Improvement: {improvement:+.2f}%")
-    print("="*40 + "\n")
+    sorted_names = sorted(all_metrics.keys())
+    header = f"| {'Metric':<12} |" + "".join([f" {name:<15} |" for name in sorted_names])
+    separator = "-" * len(header)
+    
+    print("\n" + "="*len(header))
+    print(f"Trajectory Generation Evaluation Report")
+    print(f"Agent ID: {args.id}, Dataset: {args.dataset}, ExpDir: {args.exp_dir}")
+    print("="*len(header))
+    
+    print(header)
+    print(separator)
+    
+    total_locs = all_metrics[sorted_names[0]]['total_locs']
+    row = f"| {'Loc-ACC':<12} |"
+    for name in sorted_names:
+        val = all_metrics[name].get('Loc-ACC', 0.0)
+        hits = all_metrics[name].get('hits', 0)
+        row += f" {val:.4f} ({hits:>{len(str(total_locs))}}/{total_locs}) |"
+    print(row)
+
+    for k in [1, 5, 10]:
+        metric_name = f"Acc@{k}"
+        row = f"| {metric_name:<12} |"
+        for name in sorted_names:
+            val = all_metrics[name].get(metric_name, 0.0)
+            row += f" {val:<15.4f} |"
+        print(row)
+        
+    print(separator)
+    
+    for metric in ['JSD_SD', 'JSD_SI', 'JSD_DARD', 'JSD_STVD']:
+        row = f"| {metric:<12} |"
+        for name in sorted_names:
+            val = all_metrics[name].get(metric)
+            row += f" {val:<15.4f} |" if val is not None else f" {'N/A':<15} |"
+        print(row)
+        
+    print(separator)
+    
+    gt_sd_mean, gt_sd_median = (np.mean(gt_sd_series), np.median(gt_sd_series)) if gt_sd_series else (0,0)
+    gt_si_mean, gt_si_median = (np.mean(gt_si_series), np.median(gt_si_series)) if gt_si_series else (0,0)
+
+    print(f"| {'SD mean (GT)':<12} | {f'{gt_sd_mean:.4f}':<15} |")
+    print(f"| {'SD median (GT)':<12} | {f'{gt_sd_median:.4f}':<15} |")
+    print(f"| {'SI mean (GT)':<12} | {f'{gt_si_mean:.4f}':<15} |")
+    print(f"| {'SI median (GT)':<12} | {f'{gt_si_median:.4f}':<15} |")
+
+    print("="*len(header) + "\n")
 
 if __name__ == '__main__':
     main()

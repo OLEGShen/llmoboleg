@@ -150,30 +150,62 @@ def generate_prompt(curr_input, prompt_lib_file):
 def execute_prompt(prompt, llm, objective, history=None, temperature=0.6):
     print(f"==============={objective}=========================")
 
+    # 1. 针对 DeepSeek 的 Prompt 强化（强制它按格式输出，不要废话）
+    # 我们在 prompt 后面追加一段强制指令
+    enforced_prompt = prompt + "\n\nIMPORTANT: Please answer strictly in the expected format (e.g., 'Key: Value'). Do not output any conversational filler."
+
     response = None
     while response is None:
         try:
-            client = OpenAI()
+            client = OpenAI(
+                base_url="http://10.10.63.35:8000/v1",
+                api_key="EMPTY"
+            )
+            
+            messages = []
             if history is None:
-                response = client.chat.completions.create(
-                    model=llm.model,
-                    messages=[
-                        {"role": "user", "content": prompt}
-                    ],
-                    temperature=temperature,
-                )
+                messages = [{"role": "user", "content": enforced_prompt}]
             else:
-                response = client.chat.completions.create(
-                    model=llm.model,
-                    messages=history,
-                    temperature=temperature
-                )
+                messages = history
+                # 如果是 history 模式，我们在最后一条消息追加指令
+                if messages and messages[-1]['role'] == 'user':
+                    messages[-1]['content'] += "\n\nIMPORTANT: Answer strictly in 'Key: Value' format."
+
+            completion = client.chat.completions.create(
+                model=llm.model,
+                messages=messages,
+                temperature=temperature,
+            )
+            response = completion
+            
         except Exception as e:
-            print(e)
+            print(f"Error calling LLM: {e}")
             print('Retrying...')
             time.sleep(2)
+
     answer = response.choices[0].message.content
-    return answer.strip()
+    
+    # --- [关键修改 1: 打印原始输出，方便你看 DeepSeek 到底说了啥] ---
+    print(f"\n--- [DEBUG] Raw Output (First 100 chars) ---\n{answer[:100]}...\n--------------------------------\n")
+
+    # --- [关键修改 2: 强力清洗 <think> 标签] ---
+    # 解释：(?:</think>|$) 意思是如果找不到结尾标签，就删到字符串末尾（防止截断导致正则失效）
+    answer = re.sub(r'<think>.*?(?:</think>|$)', '', answer, flags=re.DOTALL)
+    
+    # --- [关键修改 3: 兜底修复] ---
+    # 如果清洗后是空的（说明模型只思考没回答），或者格式不对，我们手动“伪造”一个格式让程序不崩溃
+    answer = answer.strip()
+    if not answer: 
+        print("Warning: Model output empty after cleaning, using fallback.")
+        return "Role: Unknown" # 这是一个兜底，防止 split 报错
+    
+    # 如果没有冒号，大概率是模型在罗嗦，我们尝试强行提取或返回原样
+    if ":" not in answer and len(answer) > 0:
+        # 很多时候 DeepSeek 会直接说 "Student"，我们帮它补上 "Role: "
+        if "role" in objective.lower():
+             return f"Role: {answer}"
+    
+    return answer
 
 
 def safe_generate_response(prompt,

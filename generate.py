@@ -17,6 +17,8 @@ parser.add_argument('--use_intent', action='store_true')
 parser.add_argument('--intent_ckpt', type=str, default='./engine/experimental/checkpoints/vimn_lite.pt')
 parser.add_argument('--use_vimn', action='store_true')
 parser.add_argument('--use_memento', action='store_true')
+parser.add_argument('--use_gating_dpo', action='store_true')
+parser.add_argument('--gating_ckpt', type=str, default=None)
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -62,6 +64,6 @@ if __name__ == "__main__":
             if args.use_intent:
                 P.init_intent_retriever(ckpt_path=args.intent_ckpt)
         # mobility generation
-        mob_gen(P, mode=args.mode, scenario_tag=scenario_tag[args.dataset], fast=args.fast, use_vimn=args.use_vimn, use_memento=args.use_memento)
+        mob_gen(P, mode=args.mode, scenario_tag=scenario_tag[args.dataset], fast=args.fast, use_vimn=args.use_vimn, use_memento=args.use_memento, use_gating=args.use_gating_dpo, gating_ckpt=args.gating_ckpt)
 
     print("done")

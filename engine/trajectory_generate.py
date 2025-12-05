@@ -8,13 +8,14 @@ from engine.experimental.vimn import DataVectorizer
 from engine.memory_manager import DualMemory
 from engine.vimn_loader import load_vimn_gru_ckpt
 from engine.memento_policy import MementoPolicyNet
+from engine.dpo_gating import DPOGatingNet
 import json
 import os
 import pickle
 import torch
 
 
-def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, use_memento=False):
+def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, use_memento=False, use_gating=False, gating_ckpt=None):
     infer_template = "./engine/prompt_template/one-shot_infer_mot.txt"
     # mode = 0 for learning based retrieval, 1 for evolving based retrieval
     describe_mot_template = "./engine/" + motivation_infer_prompt_paths[mode]
@@ -74,6 +75,7 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, us
             # learning based retrieved
             retrieve_route = person.retriever.retrieve(date_)
             demo = retrieve_route[0]
+            memento_strength = 0.0
             if use_memento:
                 try:
                     memento_path = './engine/experimental/checkpoints/memento_policy.pt'
@@ -104,6 +106,10 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, us
                             x = torch.cat([se, me], dim=-1)
                             with torch.no_grad():
                                 scores = mp(x)
+                            try:
+                                memento_strength = float(torch.softmax(scores.reshape(-1), dim=0).max().item())
+                            except Exception:
+                                memento_strength = 0.0
                             idx = int(torch.argmax(scores).item())
                             demo = cands[idx]
                 except Exception:
@@ -141,7 +147,50 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, us
             except Exception:
                 vimn_topk = []
         if motivation is not None:
+            def _entropy_from_topk(_topk):
+                import math
+                if not isinstance(_topk, list) or len(_topk) == 0:
+                    return 1.0
+                _ps = [float(d.get('prob', 0.0)) for d in _topk]
+                _s = sum(_ps)
+                if _s <= 0:
+                    return 1.0
+                _p = [x/_s for x in _ps]
+                _H = sum([-pi*math.log(max(1e-8, pi)) for pi in _p])
+                _Hmax = math.log(len(_p))
+                return float(_H / max(1e-8, _Hmax))
             prior = f"[Internal Intuition] {vimn_hint}"
+            if use_gating:
+                try:
+                    import math, datetime as dt
+                    _entropy = _entropy_from_topk(vimn_topk)
+                    _mem_score = memento_strength
+                    y_, m_, d_ = map(int, date_.split('-'))
+                    _wd = dt.date(y_, m_, d_).weekday()
+                    _emb = [1.0 if i == _wd else 0.0 for i in range(7)]
+                    _hour = 0
+                    _emb += [math.sin(2*math.pi*_hour/24.0), math.cos(2*math.pi*_hour/24.0)]
+                    if len(_emb) < 32:
+                        _emb += [0.0] * (32 - len(_emb))
+                    _state = torch.tensor([_entropy, _mem_score] + _emb[:32], dtype=torch.float32)
+                    _gate = DPOGatingNet()
+                    if gating_ckpt and os.path.exists(gating_ckpt):
+                        _sd = torch.load(gating_ckpt, map_location='cpu')
+                        try:
+                            _gate.load_state_dict(_sd)
+                        except Exception:
+                            pass
+                    with torch.no_grad():
+                        _logits = _gate.forward(_state).squeeze(0)
+                        _a = int(torch.argmax(_logits).item())
+                    if _a == 0:
+                        prior = f"[Internal Intuition] {vimn_hint}"
+                    elif _a == 1:
+                        prior = f"[Experience Memory] {demo.split(': ')[-1]}"
+                    else:
+                        prior = f"[Internal Intuition] {vimn_hint}\n[Experience Memory] {demo.split(': ')[-1]}"
+                except Exception:
+                    prior = f"[Internal Intuition] {vimn_hint}"
             curr_input = [person.attribute, motivation, date_, ',  '.join(area), weekday, demo,
                           motivation_ways[mode],
                           prior]

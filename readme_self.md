@@ -79,7 +79,16 @@
 
 **参考**
 - [1] Large Language Models as Urban Residents: An LLM Agent Framework for Personal Mobility Generation, arXiv:2402.14744（强调时间维度自一致与语义模式对齐）https://ar5iv.labs.arxiv.org/html/2402.14744
-https://arxiv.org/pdf/2411.00823
+https://arxiv.org/pdf/2411.00823 vimn
+https://arxiv.org/pdf/2508.16153 memento
+
+最优解一：CRAG (Corrective RAG) —— 架构优化的最优解来源：ICLR 2024 (Corrective Retrieval Augmented Generation)核心痛点：传统的 Gating 只是决定“用不用”检索。CRAG 提出，如果检索结果质量差，不应该只是退回到直觉（VIMN），而应该采取**“纠正动作”**。算法逻辑：引入一个轻量级的 Retrieval Evaluator（检索评估器），它的输出不仅仅是权重 $\lambda$，而是三个离散动作：Correct (准确)：检索结果完美 $\to$ 直接使用（对应你的 Hybrid Mode）。Ambiguous (模糊)：检索结果似是而非 $\to$ 结合直觉与检索（你的加权融合）。Incorrect (错误)：检索结果完全无关 $\to$ Web Search / Fallback（对应你的 VIMN Only，甚至可以触发反事实推理）。对你的优化（如何改）：把你的 GatingNetwork 升级为 CRAG Evaluator。输入：VIMN 熵 + Memento 分数。输出：分类任务（Correct / Ambiguous / Incorrect）。优势：ICLR 2024 的论文背书，证明这种“纠正式”架构比单纯的“软加权”更鲁棒。
+最优解二：Self-RAG (Self-Reflective RAG) —— 生成机制的最优解来源：ICLR 2024 / NeurIPS 2024 (Self-RAG: Learning to Retrieve, Generate, and Critique)核心痛点：RL 训练太难，Reward 太稀疏。算法逻辑：不再训练一个独立的 Gating Network，而是训练模型生成 Reflection Tokens（反思令牌）。模型会自己输出 [Retrieve] 令牌来决定是否调用 Memento。生成后，输出 [IsRel]（是否相关）和 [IsSup]（是否由证据支持）令牌来自我打分。对你的优化（如何改）：这是大改，但效果最好。既然你不想微调 LLM，你可以借鉴其Critic 思想：在训练 Gating Network 时，不仅仅看最终预测对不对（Outcome Reward），还要加入中间评价（Process Reward）。优化点：引入 Process-Supervised Reward Models (PRM) 的概念。
+为了毕业论文的创新性与可行性的平衡，我建议采用 "CRAG 的架构思想 + DPO 的训练方法"。
+
+架构上：引用 CRAG (ICLR 2024)，把你的门控网络定义为 "Lightweight Corrective Evaluator"。这比叫 "Gating Net" 更高端。
+
+算法上：引用 DPO (NeurIPS 2023)，放弃不稳定的 REINFORCE，改用 DPO 来训练这个 Evaluator。
 
 
 **首次实验 2019年 baseline 对比 VIMN 集成（意图检索替换 demo）**

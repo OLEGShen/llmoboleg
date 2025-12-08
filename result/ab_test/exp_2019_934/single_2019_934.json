@@ -1,0 +1,21 @@
+{
+  "id": 934,
+  "dataset": "2019",
+  "baseline": {
+    "count": 1,
+    "cat_match": 0.3333333333333333,
+    "time_match": 1.0,
+    "json_ok": 1.0
+  },
+  "vimn": {
+    "count": 1,
+    "cat_match": 0.16666666666666666,
+    "time_match": 0.0,
+    "json_ok": 1.0
+  },
+  "delta": {
+    "cat_match": -0.16666666666666666,
+    "time_match": -1.0,
+    "json_ok": 0.0
+  }
+}

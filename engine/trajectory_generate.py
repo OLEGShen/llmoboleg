@@ -15,7 +15,7 @@ import pickle
 import torch
 
 
-def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, use_memento=False, use_gating=False, gating_ckpt=None):
+def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, use_memento=False, use_gating=False, gating_ckpt=None, vimn_ckpt=None):
     infer_template = "./engine/prompt_template/one-shot_infer_mot.txt"
     # mode = 0 for learning based retrieval, 1 for evolving based retrieval
     describe_mot_template = "./engine/" + motivation_infer_prompt_paths[mode]
@@ -36,12 +36,15 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, us
     his_routine = person.train_routine_list[-person.top_k_routine:]
     test_iter = person.test_routine_list[:1] if fast else person.test_routine_list[:]
     try:
-        if scenario_tag == 'normal':
-            ckpt_global = './engine/experimental/checkpoints/vimn_global_gru_2019.pt'
-        elif scenario_tag == 'abnormal':
-            ckpt_global = './engine/experimental/checkpoints/vimn_global_gru_2021.pt'
+        if isinstance(vimn_ckpt, str) and os.path.exists(vimn_ckpt):
+            ckpt_global = vimn_ckpt
         else:
-            ckpt_global = './engine/experimental/checkpoints/vimn_global_gru_20192021.pt'
+            if scenario_tag == 'normal':
+                ckpt_global = './engine/experimental/checkpoints/vimn_global_gru_2019.pt'
+            elif scenario_tag == 'abnormal':
+                ckpt_global = './engine/experimental/checkpoints/vimn_global_gru_2021.pt'
+            else:
+                ckpt_global = './engine/experimental/checkpoints/vimn_global_gru_20192021.pt'
         ckpt_id = f"./engine/experimental/checkpoints/batch/vimn_best_gru_{'2019' if scenario_tag=='normal' else '2021'}_{person.id}.pt"
         vec, vimn, meta = None, None, None
         if os.path.exists(ckpt_global):
@@ -71,11 +74,11 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, us
         date_ = test_route.split(": ")[0].split(" ")[-1]
         # get motivation
         consecutive_past_days = check_consecutive_dates(his_routine, date_)
+        memento_strength = 0.0
         if mode == 0:
             # learning based retrieved
             retrieve_route = person.retriever.retrieve(date_)
             demo = retrieve_route[0]
-            memento_strength = 0.0
             if use_memento:
                 try:
                     memento_path = './engine/experimental/checkpoints/memento_policy.pt'
@@ -242,7 +245,10 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, us
                 "weekday": weekday,
                 "demo": demo,
                 "raw_contents": contents,
-                "plan": res.get("plan", [])
+                "plan": res.get("plan", []),
+                "memento_top1_score": memento_strength,
+                "memento_strength": memento_strength,
+                "top1_score": memento_strength
             }
         except Exception:
             pass

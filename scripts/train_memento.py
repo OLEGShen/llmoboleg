@@ -201,7 +201,7 @@ def main():
         print(f"epoch={epoch+1}/{args.epochs} avg_loss={avg:.4f} steps={steps}")
 
     os.makedirs('./engine/experimental/checkpoints', exist_ok=True)
-    save_path = './engine/experimental/checkpoints/memento_policy.pt'
+    save_path = './engine/experimental/checkpoints/memento_policy_{}_train_ids.pt'.format(args.dataset)
     sd = trainer.model.state_dict() if not isinstance(trainer.model, torch.nn.DataParallel) else trainer.model.module.state_dict()
     torch.save({'state_dict': sd, 'input_dim': input_dim, 'hidden_dim': 1024}, save_path)
     print(f"saved: {save_path}")

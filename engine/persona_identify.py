@@ -31,10 +31,18 @@ def identify(person, candidate_num=10, fast=False):
             contents = execute_prompt(prompt, person.llm,
                                       objective=f"init role...", history=None)
             for c in contents.split("\n"):
-                if c:
-                    role, description = c.split(": ")
-                    roles[role] = description
-                    break
+                if not c:
+                    continue
+                if ":" not in c:
+                    continue
+                # 仅分割一次，避免描述中包含冒号导致拆分过多
+                parts = c.split(":", 1)
+                role = parts[0].strip()
+                description = parts[1].strip()
+                if not role or not description:
+                    continue
+                roles[role] = description
+                break
         except Exception as e:
             print("Role extraction error: ", e)
             continue

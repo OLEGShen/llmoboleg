@@ -141,7 +141,7 @@ def main():
 
     ckpt_dir = './engine/experimental/checkpoints'
     os.makedirs(ckpt_dir, exist_ok=True)
-    path = f"{ckpt_dir}/vimn_global_gru_{args.year}.pt"
+    path = f"{ckpt_dir}/vimn_global_gru_{args.year}_train_ids.pt"
     torch.save({'model': model.state_dict(), 'meta': {
         'embed_dim': args.embed_dim,
         'hidden_dim': args.hidden_dim,

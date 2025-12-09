@@ -6,6 +6,7 @@ import json
 import re
 
 from openai import OpenAI
+from engine.llm_configs.config import CONFIG
 import openai
 import time
 
@@ -157,10 +158,10 @@ def execute_prompt(prompt, llm, objective, history=None, temperature=0.6):
     response = None
     while response is None:
         try:
-            client = OpenAI(
-                base_url="http://10.10.63.35:8000/v1",
-                api_key="EMPTY"
-            )
+            if CONFIG.openai_api_base and CONFIG.openai_api_base != "YOUR_API_BASE":
+                client = OpenAI(base_url=CONFIG.openai_api_base, api_key=CONFIG.openai_api_key)
+            else:
+                client = OpenAI(api_key=CONFIG.openai_api_key)
             
             messages = []
             if history is None:
@@ -171,12 +172,41 @@ def execute_prompt(prompt, llm, objective, history=None, temperature=0.6):
                 if messages and messages[-1]['role'] == 'user':
                     messages[-1]['content'] += "\n\nIMPORTANT: Answer strictly in 'Key: Value' format."
 
-            completion = client.chat.completions.create(
-                model=llm.model,
-                messages=messages,
-                temperature=temperature,
-            )
-            response = completion
+            try:
+                completion = client.chat.completions.create(
+                    model=llm.model,
+                    messages=messages,
+                    temperature=temperature,
+                )
+                response = completion
+            except Exception as e:
+                msg = str(e)
+                if 'only support stream mode' in msg or 'enable the stream parameter' in msg:
+                    stream_resp = client.chat.completions.create(
+                        model=llm.model,
+                        messages=messages,
+                        temperature=temperature,
+                        stream=True,
+                    )
+                    full = []
+                    for chunk in stream_resp:
+                        delta = chunk.choices[0].delta
+                        if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                            pass
+                        if hasattr(delta, 'content') and delta.content:
+                            full.append(delta.content)
+                    class _Msg:
+                        def __init__(self, content):
+                            self.content = content
+                    class _Choice:
+                        def __init__(self, msg):
+                            self.message = msg
+                    class _Rsp:
+                        def __init__(self, content):
+                            self.choices = [_Choice(_Msg(content))]
+                    response = _Rsp(''.join(full))
+                else:
+                    raise
             
         except Exception as e:
             print(f"Error calling LLM: {e}")

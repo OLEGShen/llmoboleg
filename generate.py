@@ -19,6 +19,7 @@ parser.add_argument('--vimn_ckpt', type=str, default=None)
 parser.add_argument('--memento_ckpt', type=str, default=None)
 parser.add_argument('--resume', action='store_true')
 parser.add_argument('--fast', action='store_true')
+parser.add_argument('--days', type=int, default=None)
 parser.add_argument('--use_intent', action='store_true')
 parser.add_argument('--intent_ckpt', type=str, default='./engine/experimental/checkpoints/vimn_lite.pt')
 parser.add_argument('--use_vimn', action='store_true')
@@ -107,7 +108,7 @@ if __name__ == "__main__":
             if args.use_intent:
                 P.init_intent_retriever(ckpt_path=args.intent_ckpt)
         # mobility generation
-        mob_gen(P, mode=args.mode, scenario_tag=scenario_tag[args.dataset], fast=args.fast, use_vimn=args.use_vimn, use_memento=args.use_memento, use_gating=args.use_gating_dpo, gating_ckpt=args.gating_ckpt, vimn_ckpt=args.vimn_ckpt, memento_ckpt=args.memento_ckpt)
+        mob_gen(P, mode=args.mode, scenario_tag=scenario_tag[args.dataset], fast=args.fast, use_vimn=args.use_vimn, use_memento=args.use_memento, use_gating=args.use_gating_dpo, gating_ckpt=args.gating_ckpt, vimn_ckpt=args.vimn_ckpt, memento_ckpt=args.memento_ckpt, days=args.days)
         print(f"done id {k} [{variant_dir}]")
 
     print("done")

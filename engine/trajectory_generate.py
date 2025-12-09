@@ -15,7 +15,7 @@ import pickle
 import torch
 
 
-def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, use_memento=False, use_gating=False, gating_ckpt=None, vimn_ckpt=None, memento_ckpt=None):
+def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, use_memento=False, use_gating=False, gating_ckpt=None, vimn_ckpt=None, memento_ckpt=None, days=None):
     infer_template = "./engine/prompt_template/one-shot_infer_mot.txt"
     # mode = 0 for learning based retrieval, 1 for evolving based retrieval
     describe_mot_template = "./engine/" + motivation_infer_prompt_paths[mode]
@@ -42,7 +42,12 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, us
     reals = {}
     details = {}
     his_routine = person.train_routine_list[-person.top_k_routine:]
-    test_iter = person.test_routine_list[:1] if fast else person.test_routine_list[:]
+    if fast:
+        test_iter = person.test_routine_list[:1]
+    elif isinstance(days, int) and days is not None and days > 0:
+        test_iter = person.test_routine_list[:min(days, len(person.test_routine_list))]
+    else:
+        test_iter = person.test_routine_list[:]
     try:
         if isinstance(vimn_ckpt, str) and os.path.exists(vimn_ckpt):
             ckpt_global = vimn_ckpt

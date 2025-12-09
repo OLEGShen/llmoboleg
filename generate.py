@@ -20,6 +20,7 @@ parser.add_argument('--memento_ckpt', type=str, default=None)
 parser.add_argument('--resume', action='store_true')
 parser.add_argument('--fast', action='store_true')
 parser.add_argument('--days', type=int, default=None)
+parser.add_argument('--force_identify', action='store_true')
 parser.add_argument('--use_intent', action='store_true')
 parser.add_argument('--intent_ckpt', type=str, default='./engine/experimental/checkpoints/vimn_lite.pt')
 parser.add_argument('--use_vimn', action='store_true')
@@ -100,8 +101,24 @@ if __name__ == "__main__":
             P.train_routine_list, P.test_routine_list, P.attribute, P.cat, P.domain_knowledge, P.neg_routines, P.activity_area, P.area_freq,  P.loc_cat = \
                 att[0], att[1], att[2],  att[4], att[5], att[6], att[7], att[8], att[11]
 
-        # identify the pattern of the person based on self-consistency
-        P = identify(P, fast=args.fast)
+        persona_root = f"./result/{scenario_tag[args.dataset]}/generated/{mode_name[args.mode]}/{str(k)}/"
+        persona_path = os.path.join(persona_root, 'persona.pkl')
+        if os.path.exists(persona_path) and not args.force_identify:
+            try:
+                d_persona = pickle.load(open(persona_path, 'rb'))
+                attr = d_persona.get('attribute')
+                if isinstance(attr, str) and len(attr) > 0:
+                    P.attribute = attr
+                    print(f"reuse persona for id {k}")
+            except Exception:
+                pass
+        if P.attribute is None or args.force_identify:
+            P = identify(P, fast=args.fast)
+            try:
+                os.makedirs(persona_root, exist_ok=True)
+                pickle.dump({'attribute': P.attribute}, open(persona_path, 'wb'))
+            except Exception:
+                pass
         # # initialize the retriever
         if args.mode == 0:
             P.init_retriever()

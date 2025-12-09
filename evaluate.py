@@ -263,10 +263,10 @@ class Evaluation(object):
         return duration_jsd, distance_step, st_act_jsd, st_loc_jsd
 
 
-def eval(dataset='normal', mode=0):
+def eval(dataset='normal', mode=0, generated_base_dir=None, ground_truth_base_dir=None, variant=None, ids=None):
     # Load required data
     mode_name = {0: "llm_l", 1: "llm_e"}
-    mode = mode_name[mode]
+    mode_dir = mode_name[mode]
     truth = {}
     person_to_test = []
     scenario_tag = {
@@ -275,22 +275,18 @@ def eval(dataset='normal', mode=0):
         '20192021': 'normal_abnormal'
     }
     scenario = scenario_tag[dataset]
-    # Define paths
-    ground_truth_paths = {
-        'normal': f'./result/normal/ground_truth/{mode}/',
-        'abnormal': f'./result/abnormal/ground_truth/{mode}/',
-        'normal_abnormal': f'./result/normal_abnormal/ground_truth/{mode}/'
-    }
-    generated_paths = {
-        'normal': f'./result/normal/generated/{mode}/',
-        'abnormal': f'./result/abnormal/generated/{mode}/',
-        'normal_abnormal': f'./result/normal_abnormal/generated/{mode}/'
-    }
+    ground_truth_path = ground_truth_base_dir or {
+        'normal': f'./result/normal/ground_truth/{mode_dir}/',
+        'abnormal': f'./result/abnormal/ground_truth/{mode_dir}/',
+        'normal_abnormal': f'./result/normal_abnormal/ground_truth/{mode_dir}/'
+    }[scenario]
+    gen_root = generated_base_dir or {
+        'normal': f'./result/normal/generated/{mode_dir}/',
+        'abnormal': f'./result/abnormal/generated/{mode_dir}/',
+        'normal_abnormal': f'./result/normal_abnormal/generated/{mode_dir}/'
+    }[scenario]
 
-    # Choose the last defined path
-    ground_truth_path = ground_truth_paths[scenario]
-    gen_path = generated_paths[scenario]
-    folders = [d for d in os.listdir(ground_truth_path) if os.path.isdir(os.path.join(ground_truth_path, d))]
+    folders = ids or [d for d in os.listdir(ground_truth_path) if os.path.isdir(os.path.join(ground_truth_path, d))]
     # Process ground truth data
     for f in folders:
         person = load_pickle(os.path.join(ground_truth_path, f + '/results.pkl'))
@@ -306,10 +302,13 @@ def eval(dataset='normal', mode=0):
     # Load generated data
     gen = {}
     for p in person_to_test:
-        gen_key = f"{p}_{mode}"
+        gen_key = f"{p}_{mode_dir}"
         gen[gen_key] = []
         try:
-            result_path = os.path.join(gen_path, p, 'results.pkl')
+            if variant:
+                result_path = os.path.join(gen_root, p, variant, 'results.pkl')
+            else:
+                result_path = os.path.join(gen_root, p, 'results.pkl')
             res = load_pickle(result_path)
             res_traj_ids, res_traj_lat_lngs, res_traj_acts = obtain_analysis_traj(res)
             gen[gen_key].append([res_traj_ids, res_traj_lat_lngs, res_traj_acts])
@@ -319,14 +318,14 @@ def eval(dataset='normal', mode=0):
     # Prepare data for evaluation
     gen_data, real_data = {}, {}
     for p in person_to_test:
-        gen_key = f"{p}_{mode}"
+        gen_key = f"{p}_{mode_dir}"
         for i in range(len(gen[gen_key])):
-            if mode not in gen_data:
-                gen_data[mode] = transfer(gen[gen_key][i])
-                real_data[mode] = transfer(truth[p]["test"])
+            if mode_dir not in gen_data:
+                gen_data[mode_dir] = transfer(gen[gen_key][i])
+                real_data[mode_dir] = transfer(truth[p]["test"])
             else:
-                gen_data[mode].extend(transfer(gen[gen_key][i]))
-                real_data[mode].extend(transfer(truth[p]["test"]))
+                gen_data[mode_dir].extend(transfer(gen[gen_key][i]))
+                real_data[mode_dir].extend(transfer(truth[p]["test"]))
 
     # Initialize evaluation results
     evaluation = Evaluation(None)
@@ -334,20 +333,20 @@ def eval(dataset='normal', mode=0):
     distance_step_dict, st_loc_jsd_dict = {}, {}
 
     # Compute evaluation metrics
-    duration_jsd, distance_step, st_act_jsd, st_loc_jsd = evaluation.get_JSD(real_data[mode], gen_data[mode])
-    duration_jsd_dict[mode] = duration_jsd
-    st_act_jsd_dict[mode] = st_act_jsd
-    distance_step_dict[mode] = distance_step
-    st_loc_jsd_dict[mode] = st_loc_jsd
+    duration_jsd, distance_step, st_act_jsd, st_loc_jsd = evaluation.get_JSD(real_data[mode_dir], gen_data[mode_dir])
+    duration_jsd_dict[mode_dir] = duration_jsd
+    st_act_jsd_dict[mode_dir] = st_act_jsd
+    distance_step_dict[mode_dir] = distance_step
+    st_loc_jsd_dict[mode_dir] = st_loc_jsd
 
     print(f"{scenario}")
     # Print evaluation results
     print(
-        f"{mode}: "
-        f"SD: {np.mean(distance_step_dict[mode]):.4f}, "
-        f"SI: {np.mean(duration_jsd_dict[mode]):.4f}, "
-        f"DARD: {np.mean(st_act_jsd_dict[mode]):.4f}, "
-        f"STVD: {np.mean(st_loc_jsd_dict[mode]):.4f}"
+        f"{mode_dir}{'_'+variant if variant else ''}: "
+        f"SD: {np.mean(distance_step_dict[mode_dir]):.4f}, "
+        f"SI: {np.mean(duration_jsd_dict[mode_dir]):.4f}, "
+        f"DARD: {np.mean(st_act_jsd_dict[mode_dir]):.4f}, "
+        f"STVD: {np.mean(st_loc_jsd_dict[mode_dir]):.4f}"
     )
     print()
 
@@ -360,8 +359,26 @@ if __name__ == '__main__':
                         help='Specify the dataset: ')
     parser.add_argument('--mode', type=int, default=0,
                         help='Specify the mode type: 0 for llm_l, 1 for llm_e')
+    parser.add_argument('--generated_base_dir', type=str, default=None,
+                        help='手动指定生成数据根目录（到 llm_l 层级），例如 ./result/normal_self/generated/llm_l')
+    parser.add_argument('--ground_truth_base_dir', type=str, default=None,
+                        help='手动指定真值根目录（到 llm_l 层级），例如 ./result/normal_self/ground_truth/llm_l')
+    parser.add_argument('--variant', type=str, default=None,
+                        help='可选读取子目录变体：vimn/memento/vimn_memento/vimn_memento_gating/none')
+    parser.add_argument('--ids', type=str, default=None,
+                        help='手动指定评估的用户ID列表，逗号分隔')
 
     args = parser.parse_args()  # Parse after defining arguments
 
-    # Call the eval function with parsed arguments
-    eval(dataset=args.dataset, mode=args.mode)
+    ids = None
+    if args.ids:
+        ids = []
+        for tok in args.ids.split(','):
+            tok = tok.strip()
+            if tok:
+                ids.append(tok)
+    eval(dataset=args.dataset, mode=args.mode,
+         generated_base_dir=args.generated_base_dir,
+         ground_truth_base_dir=args.ground_truth_base_dir,
+         variant=args.variant,
+         ids=ids)

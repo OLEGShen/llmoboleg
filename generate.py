@@ -16,6 +16,7 @@ parser.add_argument('--seed', type=int, default=123)
 parser.add_argument('--id', type=int, default=None)
 parser.add_argument('--ids', type=str, default=None)
 parser.add_argument('--vimn_ckpt', type=str, default=None)
+parser.add_argument('--memento_ckpt', type=str, default=None)
 parser.add_argument('--resume', action='store_true')
 parser.add_argument('--fast', action='store_true')
 parser.add_argument('--use_intent', action='store_true')
@@ -72,15 +73,26 @@ if __name__ == "__main__":
     mode_name = {0: "llm_l", 1: "llm_e"}
     for k in run_ids:
         gen_dir = f"./result/{scenario_tag[args.dataset]}/generated/{mode_name[args.mode]}/{str(k)}/"
-        if args.resume and os.path.exists(os.path.join(gen_dir, 'results.pkl')):
-            try:
-                d = pickle.load(open(os.path.join(gen_dir, 'results.pkl'), 'rb'))
-                if isinstance(d, dict) and len(d) > 0:
-                    print(f"skip id {k}, existing results={len(d)}")
-                    continue
-            except Exception:
-                pass
-        print(f"start id {k}")
+        variant = []
+        if args.use_vimn:
+            variant.append("vimn")
+        if args.use_memento:
+            variant.append("memento")
+        if args.use_gating_dpo:
+            variant.append("gating")
+        variant_dir = "none" if len(variant) == 0 else "_".join(variant)
+        gen_dir_variant = os.path.join(gen_dir, variant_dir)
+        if args.resume:
+            pkl_path = os.path.join(gen_dir_variant, 'results.pkl')
+            if os.path.exists(pkl_path):
+                try:
+                    d = pickle.load(open(pkl_path, 'rb'))
+                    if isinstance(d, dict) and len(d) > 0:
+                        print(f"skip id {k} [{variant_dir}], existing results={len(d)}")
+                        continue
+                except Exception:
+                    pass
+        print(f"start id {k} [{variant_dir}]")
         with open(folder + str(k) + ".pkl", "rb") as f:
             att = pickle.load(f)
             P = Person(name=k, model=LLM(), person_id=k, fast=args.fast)
@@ -95,7 +107,7 @@ if __name__ == "__main__":
             if args.use_intent:
                 P.init_intent_retriever(ckpt_path=args.intent_ckpt)
         # mobility generation
-        mob_gen(P, mode=args.mode, scenario_tag=scenario_tag[args.dataset], fast=args.fast, use_vimn=args.use_vimn, use_memento=args.use_memento, use_gating=args.use_gating_dpo, gating_ckpt=args.gating_ckpt, vimn_ckpt=args.vimn_ckpt)
-        print(f"done id {k}")
+        mob_gen(P, mode=args.mode, scenario_tag=scenario_tag[args.dataset], fast=args.fast, use_vimn=args.use_vimn, use_memento=args.use_memento, use_gating=args.use_gating_dpo, gating_ckpt=args.gating_ckpt, vimn_ckpt=args.vimn_ckpt, memento_ckpt=args.memento_ckpt)
+        print(f"done id {k} [{variant_dir}]")
 
     print("done")

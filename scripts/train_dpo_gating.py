@@ -93,25 +93,22 @@ def extract_memento_score(d_detail, strict=True):
     return 0.5
 
 
-def build_preference_pairs(dataset, pid, fast=True, strict_memento_score=True):
+def build_preference_pairs(dataset, pid, base_dir=None, strict_memento_score=True):
     scenario_tag = {'2019': 'normal', '2021': 'abnormal', '20192021': 'normal_abnormal'}[dataset]
-    gen_dir = f"./result/{scenario_tag}/generated/llm_l/{pid}/"
-    gt_dir = f"./result/{scenario_tag}/ground_truth/llm_l/{pid}/"
+    mode_name = 'llm_l'
+    base = base_dir or f"./result/{scenario_tag}/generated/{mode_name}/{pid}/"
+    gt_dir = f"./result/{scenario_tag}/ground_truth/{mode_name}/{pid}/"
+    # 读取各变体
+    v_dir = os.path.join(base, 'vimn')
+    m_dir = os.path.join(base, 'memento')
+    h_dir = os.path.join(base, 'vimn_memento')
 
-    cmd_v = f"python generate.py --dataset {dataset} --mode 0 --id {pid} {'--fast' if fast else ''} --use_vimn"
-    run_cmd(cmd_v)
-    details_v = read_pkl(os.path.join(gen_dir, 'details.pkl'))
-    results_v = read_pkl(os.path.join(gen_dir, 'results.pkl'))
-
-    cmd_m = f"python generate.py --dataset {dataset} --mode 0 --id {pid} {'--fast' if fast else ''} --use_memento"
-    run_cmd(cmd_m)
-    details_m = read_pkl(os.path.join(gen_dir, 'details.pkl'))
-    results_m = read_pkl(os.path.join(gen_dir, 'results.pkl'))
-
-    cmd_h = f"python generate.py --dataset {dataset} --mode 0 --id {pid} {'--fast' if fast else ''} --use_vimn --use_memento"
-    run_cmd(cmd_h)
-    details_h = read_pkl(os.path.join(gen_dir, 'details.pkl'))
-    results_h = read_pkl(os.path.join(gen_dir, 'results.pkl'))
+    details_v = read_pkl(os.path.join(v_dir, 'details.pkl'))
+    results_v = read_pkl(os.path.join(v_dir, 'results.pkl'))
+    details_m = read_pkl(os.path.join(m_dir, 'details.pkl'))
+    results_m = read_pkl(os.path.join(m_dir, 'results.pkl'))
+    details_h = read_pkl(os.path.join(h_dir, 'details.pkl'))
+    results_h = read_pkl(os.path.join(h_dir, 'results.pkl'))
 
     gt_map = read_pkl(os.path.join(gt_dir, 'results.pkl'))
 
@@ -186,6 +183,7 @@ def main():
     ap.add_argument('--ids', type=str, default=None)
     ap.add_argument('--user_list_file', type=str, default=None)
     ap.add_argument('--fast', action='store_true')
+    ap.add_argument('--generated_base_dir', type=str, default=None, help='手动指定 generate 输出的基目录，包含每个id下的 vimn/memento/vimn_memento 子目录')
     ap.add_argument('--epochs', type=int, default=3)
     ap.add_argument('--lr', type=float, default=1e-3)
     ap.add_argument('--beta', type=float, default=0.1)
@@ -212,7 +210,7 @@ def main():
 
     all_pairs = []
     for pid in id_list:
-        user_pairs = build_preference_pairs(args.dataset, pid, fast=args.fast, strict_memento_score=(not args.allow_score_fallback))
+        user_pairs = build_preference_pairs(args.dataset, pid, base_dir=args.generated_base_dir, strict_memento_score=(not args.allow_score_fallback))
         all_pairs.extend(user_pairs)
 
     trainer = DPOTrainer(lr=args.lr, beta=args.beta, cost_beta=args.cost_beta)

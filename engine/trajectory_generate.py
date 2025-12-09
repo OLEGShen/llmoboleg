@@ -15,7 +15,7 @@ import pickle
 import torch
 
 
-def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, use_memento=False, use_gating=False, gating_ckpt=None, vimn_ckpt=None):
+def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, use_memento=False, use_gating=False, gating_ckpt=None, vimn_ckpt=None, memento_ckpt=None):
     infer_template = "./engine/prompt_template/one-shot_infer_mot.txt"
     # mode = 0 for learning based retrieval, 1 for evolving based retrieval
     describe_mot_template = "./engine/" + motivation_infer_prompt_paths[mode]
@@ -23,7 +23,15 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, us
                        "Following are the thing you focus in the last few days:"
                        ]
     mode_name = {0: "llm_l", 1: "llm_e"}
-    generation_path = f"./result/{scenario_tag}/generated/{mode_name[mode]}/{str(person.id)}/"
+    variant = []
+    if use_vimn:
+        variant.append("vimn")
+    if use_memento:
+        variant.append("memento")
+    if use_gating:
+        variant.append("gating")
+    variant_dir = "none" if len(variant) == 0 else "_".join(variant)
+    generation_path = f"./result/{scenario_tag}/generated/{mode_name[mode]}/{str(person.id)}/{variant_dir}/"
     ground_truth_path = f"./result/{scenario_tag}/ground_truth/{mode_name[mode]}/{str(person.id)}/"
     if os.path.exists(generation_path) is False:
         os.makedirs(generation_path)
@@ -81,7 +89,7 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, us
             demo = retrieve_route[0]
             if use_memento:
                 try:
-                    memento_path = './engine/experimental/checkpoints/memento_policy.pt'
+                    memento_path = memento_ckpt if (isinstance(memento_ckpt, str) and os.path.exists(memento_ckpt)) else './engine/experimental/checkpoints/memento_policy.pt'
                     if os.path.exists(memento_path):
                         st = torch.load(memento_path, map_location='cpu')
                         input_dim = st.get('input_dim')

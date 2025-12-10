@@ -147,13 +147,20 @@ llm_l_memento: SD: 0.0724, SI: 0.0703, DARD: 0.4477, STVD: 0.6455
 - vimn测试：
 
 ```python scripts/run_single_ab_test.py --dataset 2019 --id 934 --fast ```
+python -m evaluate --dataset 2019 --mode 0 --generated_base_dir ./result/normal_self/generated/llm_l --ground_truth_base_dir ./result/normal_self/ground_truth/llm_l --variant none --ids 1626,7266,1568,2078,2610
 
 训练：
+1481 1784 2721 638 7626 1626 7266 1568 2078 2610
 2575 1481 1784 2721 638 7626 1626 7266 1568 2078 2610 1908 2683 1883 3637 225 914 6863 6670 323 3282 2390 2337 4396 7259 1310 3802 1522 1219 1004 4105 540 6157 1556 2266 13 1874 317 2513 3255 934 3599 1775 606 3033 3784 5252 3365 6581 6171 5326 2831 3453 3781 2402 4843 439 1172 3501 1032 2542 1184 1531 6615 7228 1492 6973 67 2680 2956 3138 3638 5765 835 1431 6249 6998
 
 测试：
 573 884 2356 6463 930 3534 6814 5551 5449 6144 6156 4768 2620 4007 1974
+测试1：1626 7266 1568 2078 2610（训练数据前10id）
+llm_l_none: SD: 0.0841, SI: 0.0783, DARD: 0.4566, STVD: 0.6541
+llm_l_vimn: SD: 0.0697, SI: 0.0794, DARD: 0.4648, STVD: 0.6581
+llm_l_memento: SD: 0.1113, SI: 0.0844, DARD: 0.4333, STVD: 0.6544
 
+llm_l_vimn_memento_gating: SD: 0.0370, SI: 0.0003, DARD: 0.6268, STVD: 0.6809
 # 读取 train_ids.txt 的内容传给 --ids
 
 python -m scripts.train_vimn_global   --year 2019   --ids 2575 1481 1784 2721 638 7626 1626 7266 1568 2078 2610 1908 2683 1883 3637 225 914 6863 6670 323 3282 2390 2337 4396 7259 1310 3802 1522 1219 1004 4105 540 6157 1556 2266 13 1874 317 2513 3255 934 3599 1775 606 3033 3784 5252 3365 6581 6171 5326 2831 3453 3781 2402 4843 439 1172 3501 1032 2542 1184 1531 6615 7228 1492 6973 67 2680 2956 3138 3638 5765 835 1431 6249 6998   --epochs 50   --batch 256   --amp --device auto
@@ -165,6 +172,10 @@ python generate.py --dataset 2019 --mode 0 --ids 1626,7266,1568,2078,2610 --resu
 
 python generate.py --dataset 2019 --mode 0 --ids 1626,7266,1568,2078,2610 --resume --use_memento --memento_ckpt ./engine/experimental/checkpoints/memento_policy_2019_train_ids.pt --days 10
 
+python generate.py --dataset 2019 --mode 0 --ids 1626 --resume --use_memento --use_memento --memento_ckpt ./engine/experimental/checkpoints/memento_policy_2019_train_ids.pt --memento_ckpt ./engine/experimental/checkpoints/memento_policy_2019_train_ids.pt --dpo_gating --days 10
+
+python generate.py --dataset 2019 --mode 0 --ids 2610 --days 10 --resume --use_vimn --use_memento --use_gating_dpo --vimn_ckpt ./engine/experimental/checkpoints/vimn_global_gru_2019_train_ids.pt --memento_ckpt ./engine/experimental/checkpoints/memento_policy_2019_train_ids.pt --gating_ckpt ./engine/experimental/checkpoints/gating_dpo_multi.pt
+
 python generate.py --dataset 2019 --mode 0 --ids 2575,1481,1784,2721,638,7626,1626,7266,1568,2078,2610,1908,2683,1883,3637,225,914,6863,6670,323,3282,2390,2337,4396,7259,1310,3802,1522,1219,1004,4105,540,6157,1556,2266,13,1874,317,2513,3255,934,3599,1775,606,3033,3784,5252,3365,6581,6171,5326,2831,3453,3781,2402,4843,439,1172,3501,1032,2542,1184,1531,6615,7228,1492,6973,67,2680,2956,3138,3638,5765,835,1431,6249,6998 --resume --use_memento --memento_ckptvimn_ckpt ./engine/experimental/checkpoints/memento_policy_2019_train_ids.pt
 
 python -m scripts.train_dpo_gating --dataset 2019 --id 934 --generated_base_dir ./result/test_dpo --epochs 3 --lr 1e-3 --beta 0.1 --cost_beta 0.1
@@ -175,3 +186,16 @@ python generate.py --dataset 2019 --mode 0 --id 934 --fast --use_vimn --use_meme
 - python -m evaluate --dataset 2019 --mode 0 --generated_base_dir ./result/normal_self/generated/llm_l --ground_truth_base_dir ./result/normal_self/ground_truth/llm_l --variant vimn --ids 638,2721,1784,2575
 - 评估 Memento 结果：
 - python -m evaluate --dataset 2019 --mode 0 --generated_base_dir ./result/normal_self/generated/llm_l --ground_truth_base_dir ./result/normal_self/ground_truth/llm_l --variant memento --ids 638,2721,1784,2575
+
+
+测评：
+llm_l_none: SD: 0.0841, SI: 0.0783, DARD: 0.4566, STVD: 0.6520
+llm_l_vimn: SD: 0.0697, SI: 0.0794, DARD: 0.4648, STVD: 0.6680
+llm_l_memento: SD: 0.1113, SI: 0.0844, DARD: 0.4333, STVD: 0.6544
+llm_l_vimn_memento_gating: SD: 0.0374, SI: 0.0299, DARD: 0.3502, STVD: 0.5296
+
+2610测试 前9id训练：
+llm_l_none: SD: 0.0929, SI: 0.0111, DARD: 0.6362, STVD: 0.6772
+llm_l_vimn_memento_gating: SD: 0.0696, SI: 0.0035, DARD: 0.5969, STVD: 0.6629
+llm_l_vimn: SD: 0.0875, SI: 0.0100, DARD: 0.6122, STVD: 0.6804
+llm_l_memento: SD: 0.0754, SI: 0.0258, DARD: 0.6171, STVD: 0.6772

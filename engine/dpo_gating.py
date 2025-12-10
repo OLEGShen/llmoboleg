@@ -14,17 +14,18 @@ class DPOGatingNet(nn.Module):
         device: Optional[torch.device] = None,
     ) -> None:
         super().__init__()
-        self.device = (
-            device
-            if device is not None
-            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
+        prefer_cuda = torch.cuda.is_available()
+        self.device = torch.device("cuda") if (device is None and prefer_cuda) else (device or torch.device("cpu"))
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
             nn.ReLU(),
             nn.Linear(hidden_dim, num_actions),
         )
-        self.to(self.device)
+        try:
+            self.to(self.device)
+        except RuntimeError:
+            self.device = torch.device("cpu")
+            self.to(self.device)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if x.dim() == 1:
@@ -43,12 +44,13 @@ class DPOTrainer:
         action_costs: Optional[Tuple[float, float, float]] = (0.0, 0.2, 0.3),
         device: Optional[torch.device] = None,
     ) -> None:
-        self.device = (
-            device
-            if device is not None
-            else torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        )
-        self.model = model if model is not None else DPOGatingNet(device=self.device)
+        prefer_cuda = torch.cuda.is_available()
+        self.device = torch.device("cuda") if (device is None and prefer_cuda) else (device or torch.device("cpu"))
+        try:
+            self.model = model if model is not None else DPOGatingNet(device=self.device)
+        except RuntimeError:
+            self.device = torch.device("cpu")
+            self.model = model if model is not None else DPOGatingNet(device=self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=lr)
         self.beta = float(beta)
         self.cost_beta = float(cost_beta)

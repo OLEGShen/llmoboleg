@@ -161,7 +161,7 @@ python -m scripts.train_vimn_global   --year 2019   --ids 2575 1481 1784 2721 63
 python scripts/train_memento.py --dataset 2019 --ids 2575,1481,1784,2721,638,7626,1626,7266,1568,2078,2610,1908,2683,1883,3637,225,914,6863,6670,323,3282,2390,2337,4396,7259,1310,3802,1522,1219,1004,4105,540,6157,1556,2266,13,1874,317,2513,3255,934,3599,1775,606,3033,3784,5252,3365,6581,6171,5326,2831,3453,3781,2402,4843,439,1172,3501,1032,2542,1184,1531,6615,7228,1492,6973,67,2680,2956,3138,3638,5765,835,1431,6249,6998 --epochs 20 --top_k 20 --batch_size 8192
 
 未完成：
-python generate.py --dataset 2019 --mode 0 --ids 1481,1784,2721,638,7626 --resume --use_vimn --vimn_ckpt ./engine/experimental/checkpoints/vimn_global_gru_2019_train_ids.pt --days 10
+python generate.py --dataset 2019 --mode 0 --ids 1626,7266,1568,2078,2610 --resume --use_vimn --vimn_ckpt ./engine/experimental/checkpoints/vimn_global_gru_2019_train_ids.pt --days 10
 
 python generate.py --dataset 2019 --mode 0 --ids 638,7626 --resume --use_memento --memento_ckpt ./engine/experimental/checkpoints/memento_policy_2019_train_ids.pt --days 10
 

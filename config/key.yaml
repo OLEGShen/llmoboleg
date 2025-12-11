@@ -12,7 +12,9 @@
 # xiong
 # OPENAI_API_KEY: "sk-77b0e287277c4daa87cf554027a3866f"
 # jia
-OPENAI_API_KEY: "sk-5f80641e1c0e4229b878a515b8fa2562"
+# OPENAI_API_KEY: "sk-5f80641e1c0e4229b878a515b8fa2562"
+#zhu
+OPENAI_API_KEY: "sk-1a9f44a66268417ea5118ee12cd459f2"
 OPENAI_API_MODEL: "deepseek-v3.1"
 OPENAI_API_BASE: "https://dashscope.aliyuncs.com/compatible-mode/v1"
 GLOBAL_PROXY: ""

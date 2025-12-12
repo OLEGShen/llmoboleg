@@ -20,14 +20,14 @@ OPENAI_API_KEY: "sk-5f80641e1c0e4229b878a515b8fa2562"
 #lu cha
 # OPENAI_API_KEY: "sk-c0a94a4eed2640eaaf2e0288109d8f7a"
 #zongyue
-OPENAI_API_KEY: "sk-340c6de96b7e4d3aa62b7f4f1847b6b4"
+# OPENAI_API_KEY: "sk-340c6de96b7e4d3aa62b7f4f1847b6b4"
 #yuan cha
-OPENAI_API_KEY: "sk-20080d6a08ba423da7317dc237764dae"
+# OPENAI_API_KEY: "sk-20080d6a08ba423da7317dc237764dae"
 #doubao
-OPENAI_API_KEY: "c3b9beae-7259-401a-91f2-493f73a1ce18"
+# OPENAI_API_KEY: "c3b9beae-7259-401a-91f2-493f73a1ce18"
 
-# OPENAI_API_MODEL: "deepseek-v3.1"
-OPENAI_API_MODEL: "deepseek-v3-1-250821"
-# OPENAI_API_BASE: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-OPENAI_API_BASE: "https://ark.cn-beijing.volces.com/api/v3"
+OPENAI_API_MODEL: "deepseek-v3.1"
+# OPENAI_API_MODEL: "deepseek-v3-1-250821"
+OPENAI_API_BASE: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+# OPENAI_API_BASE: "https://ark.cn-beijing.volces.com/api/v3"
 GLOBAL_PROXY: ""

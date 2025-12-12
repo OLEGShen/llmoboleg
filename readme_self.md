@@ -170,6 +170,8 @@ python scripts/train_memento.py --dataset 2019 --ids 2575,1481,1784,2721,638,762
 未完成：
 python generate.py --dataset 2019 --mode 0 --ids 1908,2683 --resume --use_vimn --vimn_ckpt ./engine/experimental/checkpoints/vimn_global_gru_2019_train_ids.pt --days 10
 
+python generate.py --dataset 2019 --mode 0 --ids 1626,7266,1568,2078,2610,1908,2683,1883,3637,225,914,6863,6670,323,3282,2390 --resume --days 10
+
 python generate.py --dataset 2019 --mode 0 --ids 1626,7266,1568,2078,2610 --resume --use_memento --memento_ckpt ./engine/experimental/checkpoints/memento_policy_2019_train_ids.pt --days 10
 
 python generate.py --dataset 2019 --mode 0 --ids 1626 --resume --use_memento --use_memento --memento_ckpt ./engine/experimental/checkpoints/memento_policy_2019_train_ids.pt --memento_ckpt ./engine/experimental/checkpoints/memento_policy_2019_train_ids.pt --dpo_gating --days 10
@@ -204,4 +206,6 @@ llm_l_memento: SD: 0.0754, SI: 0.0258, DARD: 0.6171, STVD: 0.6772
 7626
 2575,1481,1784,2721,638,
 1626,7266,1568,2078,2610,
-1908,2683,1883,3637,225,914,6863,6670,323,3282
+1908,2683,1883,3637,225,914,6863,6670,323,3282,2390
+,2337
+

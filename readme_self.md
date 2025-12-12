@@ -147,7 +147,7 @@ llm_l_memento: SD: 0.0724, SI: 0.0703, DARD: 0.4477, STVD: 0.6455
 - vimn测试：
 
 ```python scripts/run_single_ab_test.py --dataset 2019 --id 934 --fast ```
-python -m evaluate --dataset 2019 --mode 0 --generated_base_dir ./result/normal_self/generated/llm_l --ground_truth_base_dir ./result/normal_self/ground_truth/llm_l --variant none --ids 1626,7266,1568,2078,2610
+python -m evaluate --dataset 2019 --mode 0 --generated_base_dir ./result/normal_self/generated/llm_l --ground_truth_base_dir ./result/normal_self/ground_truth/llm_l --variant none --ids 914,6863,6670,323,3282
 
 训练：
 1481 1784 2721 638 7626 1626 7266 1568 2078 2610
@@ -214,3 +214,10 @@ llm_l_memento: SD: 0.0754, SI: 0.0258, DARD: 0.6171, STVD: 0.6772
 2390
 ,2337
 
+测试914-6863-6670-323-3282：
+llm_l_none: SD: 0.0474, SI: 0.0531, DARD: 0.4255, STVD: 0.6699
+llm_l_vimn: SD: 0.0451, SI: 0.0598, DARD: 0.4584, STVD: 0.6669
+llm_l_memento: SD: 0.0286, SI: 0.0450, DARD: 0.4337, STVD: 0.6739
+llm_l_vimn_memento_gating: SD: 0.0233, SI: 0.0060, DARD: 0.4372, STVD: 0.6632
+
+python generate.py --dataset 2019 --mode 0 --ids 914,6863,6670,323,3282 --days 10 --use_memento --memento_ckpt ./engine/experimental/checkpoints/memento_policy_2019_train_ids.pt --minilm_model_path /home/syf/.cache/modelscope/hub/models/sentence-transformers/all-MiniLM-L6-v2

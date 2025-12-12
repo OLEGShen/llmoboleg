@@ -94,11 +94,11 @@ def extract_memento_score(d_detail, strict=True):
 
 
 def build_preference_pairs(dataset, pid, base_dir=None, strict_memento_score=True):
-    scenario_tag = {'2019': 'normal_self', '2021': 'abnormal_self', '20192021': 'normal_abnormal_self'}[dataset]
+    scenario_tag = {'2019': 'normal', '2021': 'abnormal', '20192021': 'normal_abnormal'}[dataset]
     mode_name = 'llm_l'
     base = base_dir or f"./result/{scenario_tag}/generated/{mode_name}/{pid}/"
     gt_dir = f"./result/{scenario_tag}/ground_truth/{mode_name}/{pid}/"
-    # 读取各变体（允许某些缺失，只要 vimn 与 memento 存在即可训练）
+    # 读取各变体
     v_dir = os.path.join(base, 'vimn')
     m_dir = os.path.join(base, 'memento')
     h_dir = os.path.join(base, 'vimn_memento')
@@ -112,19 +112,12 @@ def build_preference_pairs(dataset, pid, base_dir=None, strict_memento_score=Tru
 
     gt_map = read_pkl(os.path.join(gt_dir, 'results.pkl'))
 
-    if not isinstance(results_v, dict) or not isinstance(results_m, dict) or not isinstance(gt_map, dict):
-        return []
-
-    # 如果融合缺失，不作为必要条件
-    common_dates = set(results_v.keys()) & set(results_m.keys()) & set(gt_map.keys())
-    if isinstance(results_h, dict):
-        common_dates = common_dates & set(results_h.keys())
-    dates = sorted(common_dates)
+    dates = sorted(set(results_v.keys()) & set(results_m.keys()) & set(results_h.keys()) & set(gt_map.keys()))
     pairs = []
     for d in dates:
         gv = results_v.get(d)
         gm = results_m.get(d)
-        gh = results_h.get(d) if isinstance(results_h, dict) else None
+        gh = results_h.get(d)
         gr = gt_map.get(d)
         if gv is None or gm is None or gh is None or gr is None:
             continue
@@ -138,7 +131,7 @@ def build_preference_pairs(dataset, pid, base_dir=None, strict_memento_score=Tru
 
         cv = check_poi_match(gv, gr)
         cm = check_poi_match(gm, gr)
-        ch = check_poi_match(gh, gr) if gh is not None else False
+        ch = check_poi_match(gh, gr)
 
         winner = None
         if cv:
@@ -187,7 +180,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dataset', type=str, default='2019')
     ap.add_argument('--id', type=int, default=None)
-    ap.add_argument('--ids', type=str, default=None, help='逗号分隔，例如 1481,1784,2721,...')
+    ap.add_argument('--ids', type=str, default=None)
     ap.add_argument('--user_list_file', type=str, default=None)
     ap.add_argument('--fast', action='store_true')
     ap.add_argument('--generated_base_dir', type=str, default=None, help='手动指定 generate 输出的基目录，包含每个id下的 vimn/memento/vimn_memento 子目录')

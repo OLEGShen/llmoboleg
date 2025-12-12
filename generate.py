@@ -17,6 +17,7 @@ parser.add_argument('--id', type=int, default=None)
 parser.add_argument('--ids', type=str, default=None)
 parser.add_argument('--vimn_ckpt', type=str, default=None)
 parser.add_argument('--memento_ckpt', type=str, default=None)
+parser.add_argument('--minilm_model_path', type=str, default=None)
 parser.add_argument('--resume', action='store_true')
 parser.add_argument('--fast', action='store_true')
 parser.add_argument('--days', type=int, default=None)
@@ -125,6 +126,8 @@ if __name__ == "__main__":
             if args.use_intent:
                 P.init_intent_retriever(ckpt_path=args.intent_ckpt)
         # mobility generation
+        if args.minilm_model_path is not None and isinstance(args.minilm_model_path, str) and len(args.minilm_model_path) > 0:
+            os.environ['MINILM_MODEL_PATH'] = args.minilm_model_path
         mob_gen(P, mode=args.mode, scenario_tag=scenario_tag[args.dataset], fast=args.fast, use_vimn=args.use_vimn, use_memento=args.use_memento, use_gating=args.use_gating_dpo, gating_ckpt=args.gating_ckpt, vimn_ckpt=args.vimn_ckpt, memento_ckpt=args.memento_ckpt, days=args.days)
         print(f"done id {k} [{variant_dir}]")
 

@@ -9,10 +9,12 @@ from engine.memory_manager import DualMemory
 from engine.vimn_loader import load_vimn_gru_ckpt
 from engine.memento_policy import MementoPolicyNet
 from engine.dpo_gating import DPOGatingNet
+from engine.experimental.memento import SemanticMemento, _to_text
 import json
 import os
 import pickle
 import torch
+import datetime as dt
 
 
 def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, use_memento=False, use_gating=False, gating_ckpt=None, vimn_ckpt=None, memento_ckpt=None, days=None):
@@ -83,6 +85,12 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, us
         vimn = None
         translator = None
         dm = None
+    try:
+        _loc_map = pickle.load(open('./data/loc_map.pkl', 'rb'))
+        _map_loc = {v: k for k, v in _loc_map.items()}
+    except Exception:
+        _map_loc = {}
+    sm = None
     for test_route in test_iter:
         date_ = test_route.split(": ")[0].split(" ")[-1]
         # get motivation
@@ -112,6 +120,84 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, us
                                     cands = list(dict.fromkeys(list(retrieve_route) + intent_top))
                         except Exception:
                             pass
+                        try:
+                            if sm is None:
+                                try:
+                                    mp_override = os.environ.get('MINILM_MODEL_PATH')
+                                except Exception:
+                                    mp_override = None
+                                sm = SemanticMemento(model_path=mp_override)
+                            mem_records = []
+                            try:
+                                y_, m_, d_ = map(int, date_.split('-'))
+                                _wdn = dt.date(y_, m_, d_).weekday()
+                            except Exception:
+                                _wdn = 0
+                            for r in cands:
+                                items = _extract_items(r)
+                                if len(items) == 0:
+                                    continue
+                                loc_name, pid, tmin = items[0][0], items[0][1], items[0][2]
+                                tm = f"{int(tmin//60):02d}:{int(tmin%60):02d}"
+                                cat = person.loc_cat.get(loc_name, '未知')
+                                lat, lng = 0.0, 0.0
+                                key = f"{loc_name}#{pid}"
+                                try:
+                                    s = _map_loc[key]
+                                    s = s.replace(' (', ', ').replace(')', '')
+                                    lat = float(s.split(', ')[1]); lng = float(s.split(', ')[2])
+                                except Exception:
+                                    pass
+                                mem_records.append({'poi_id': pid, 'lat': lat, 'lng': lng, 'weekday': _wdn, 'time': tm, 'poi_cat': cat, 'route': r})
+                            if len(mem_records) > 0:
+                                sm.build_memory(mem_records)
+                                try:
+                                    print(f"MiniLM: built {len(mem_records)} records")
+                                except Exception:
+                                    pass
+                                q_items = _extract_items(demo)
+                                if len(q_items) > 0:
+                                    q_loc, q_pid, q_tmin = q_items[0][0], q_items[0][1], q_items[0][2]
+                                    q_tm = f"{int(q_tmin//60):02d}:{int(q_tmin%60):02d}"
+                                    q_cat = person.loc_cat.get(q_loc, '未知')
+                                    q_txt = _to_text(_wdn, q_tm, q_cat)
+                                    q_lat, q_lng = 0.0, 0.0
+                                    q_key = f"{q_loc}#{q_pid}"
+                                    try:
+                                        qs = _map_loc[q_key]
+                                        qs = qs.replace(' (', ', ').replace(')', '')
+                                        q_lat = float(qs.split(', ')[1]); q_lng = float(qs.split(', ')[2])
+                                    except Exception:
+                                        pass
+                                    sem_list, sem_top1 = sm.retrieve(q_txt, q_lat, q_lng, top_k=10)
+                                    try:
+                                        kept = sum(1 for d in sem_list if isinstance(d, dict))
+                                        print(f"MiniLM: query sim_top1={sem_top1:.4f}, kept={kept}")
+                                    except Exception:
+                                        pass
+                                    filt_routes = [d['meta'].get('route') for d in sem_list if isinstance(d, dict)]
+                                    if len(filt_routes) > 0:
+                                        cands = filt_routes
+                                    details_top1_sem = float(sem_top1)
+                                else:
+                                    details_top1_sem = 0.0
+                                    try:
+                                        print("MiniLM: skipped (query_items=0)")
+                                    except Exception:
+                                        pass
+                            else:
+                                details_top1_sem = 0.0
+                                try:
+                                    print("MiniLM: skipped (mem_records=0)")
+                                except Exception:
+                                    pass
+                        except Exception as _e:
+                            details_top1_sem = 0.0
+                            try:
+                                import traceback as _tb
+                                print(f"MiniLM: error during semantic retrieve: {str(_e)[:160]}")
+                            except Exception:
+                                pass
                         if len(cands) > 0:
                             se = state_vec.unsqueeze(0).expand(len(cands), -1)
                             me_list = []
@@ -259,7 +345,7 @@ def mob_gen(person, mode=0, scenario_tag="normal", fast=False, use_vimn=True, us
                 "demo": demo,
                 "raw_contents": contents,
                 "plan": res.get("plan", []),
-                "memento_top1_score": memento_strength,
+                "memento_top1_score": details_top1_sem if 'details_top1_sem' in locals() else memento_strength,
                 "memento_strength": memento_strength,
                 "top1_score": memento_strength
             }

@@ -185,7 +185,7 @@ python -m scripts.train_dpo_gating --dataset 2019 --ids 2575,1481,
 generated_base_dir ./result/test_dpo --epochs 3 --lr 1e-3 --beta 
 0.1 --cost_beta 0.1
 
-python generate.py --dataset 2019 --mode 0 --id 934 --fast --use_vimn --use_memento --use_gating_dpo --vimn_ckpt ./engine/experimental/checkpoints/vimn_global_gru_2019_train_ids.pt --memento_ckpt ./engine/experimental/checkpoints/memento_policy_2019_train_ids.pt --gating_ckpt ./engine/experimental/checkpoints/gating_dpo_934.pt
+python generate.py --dataset 2019 --mode 0 --ids 914,6863,6670,323,3282 --days 10 --use_vimn --use_memento --use_gating_dpo --vimn_ckpt ./engine/experimental/checkpoints/vimn_global_gru_2019_train_ids.pt --memento_ckpt ./engine/experimental/checkpoints/memento_policy_2019_train_ids.pt --gating_ckpt ./engine/experimental/checkpoints/gating_dpo_multi.pt
 
 - 评估你刚跑的 VIMN 结果（示例）：
 - python -m evaluate --dataset 2019 --mode 0 --generated_base_dir ./result/normal_self/generated/llm_l --ground_truth_base_dir ./result/normal_self/ground_truth/llm_l --variant vimn --ids 638,2721,1784,2575
@@ -209,6 +209,8 @@ llm_l_memento: SD: 0.0754, SI: 0.0258, DARD: 0.6171, STVD: 0.6772
 7626
 2575,1481,1784,2721,638,
 1626,7266,1568,2078,2610,
-1908,2683,1883,3637,225,914,6863,6670,323,3282,2390
+1908,2683,1883,3637,225,
+914,6863,6670,323,3282,
+2390
 ,2337
 
